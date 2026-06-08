@@ -1,0 +1,64 @@
+# Dependencies
+node_modules/
+.pnpm-store/
+.venv/
+__pycache__/
+*.py[cod]
+*$py.class
+*.egg-info/
+pip-wheel-metadata/
+
+# Build
+dist/
+build/
+.next/
+.turbo/
+
+# Test, lint, and type-check caches
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.hypothesis/
+.coverage
+coverage.xml
+htmlcov/
+coverage/
+test-results/
+junit.xml
+
+# Local env
+.env
+.env.local
+.env.*.local
+environment/*.env
+**/local.settings.json
+
+# Logs and artifacts
+*.log
+*.dump
+*.bak
+*.old
+
+# Local agent state
+.claude/
+
+# IDE
+.vscode/
+!.vscode/extensions.json
+!.vscode/settings.json
+.idea/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+crash.log
+override.tf
+override.tf.json
+
+# Local Docker Compose overrides
+docker-compose.override.yml
