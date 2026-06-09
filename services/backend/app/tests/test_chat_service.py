@@ -114,6 +114,50 @@ async def test_broadcast_to_room_sends_only_to_room_members() -> None:
     assert ws_ana.sent == []
 
 
+async def test_find_existing_connection_by_nickname() -> None:
+    manager = ConnectionManager(max_connections=10)
+
+    ws_joao = DummyWebSocket()
+    ws_maria = DummyWebSocket()
+
+    joao = await manager.connect(ws_joao, nickname="joao", language="Portuguese")
+    await manager.connect(ws_maria, nickname="maria", language="Portuguese")
+
+    result = manager.find_by_nickname("joao")
+
+    assert result is not None
+    assert result.nickname == "joao"
+    assert result is joao
+
+
+async def test_find_missing_connection_by_nickname() -> None:
+    manager = ConnectionManager(max_connections=10)
+
+    ws_maria = DummyWebSocket()
+
+    await manager.connect(ws_maria, nickname="maria", language="Portuguese")
+
+    result = manager.find_by_nickname("joao")
+
+    assert result is None
+
+
+async def test_find_disconnected_connection_by_nickname() -> None:
+    manager = ConnectionManager(max_connections=10)
+
+    ws_joao = DummyWebSocket()
+    ws_maria = DummyWebSocket()
+
+    await manager.connect(ws_maria, nickname="maria", language="Portuguese")
+    joao = await manager.connect(ws_joao, nickname="joao", language="Portuguese")
+
+    await manager.disconnect(joao)
+
+    result = manager.find_by_nickname("joao")
+
+    assert result is None
+
+
 async def test_join_public_room_broadcasts_join_event() -> None:
     manager = ConnectionManager(max_connections=10)
     service = ChatService(manager)
