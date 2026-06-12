@@ -9,11 +9,12 @@ from app.core.security import InvalidTokenError, decode_jwt
 from app.schemas.auth import TokenPayload
 from app.schemas.messages import ClientMessage
 from app.services.chat import ChatService, ConnectionManager
+from app.services.translation.base import FakeTranslator
 
 router = APIRouter(tags=["websocket"])
 client_message_adapter: TypeAdapter[ClientMessage] = TypeAdapter(ClientMessage)
 manager = ConnectionManager(max_connections=10)
-chat = ChatService(manager)
+chat = ChatService(manager, FakeTranslator())
 
 
 @router.websocket("/ws/chat")

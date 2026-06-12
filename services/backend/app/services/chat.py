@@ -1,5 +1,7 @@
 from typing import Protocol
 
+from app.services.translation.base import TranslationProvider
+
 
 class WebSocketLike(Protocol):
     async def send_json(self, data: dict[str, object]) -> None:
@@ -87,10 +89,24 @@ class ConnectionManager:
             
         return None
     
+    def target_languages_room(self, *, language: str, room: str) -> set[str]:
+        room_connections = self._rooms.get(room)
+        languages: set[str] = set()
+
+        if room_connections is None:
+            return languages
+
+        for connection in room_connections:
+            if connection.language != language:
+                languages.add(connection.language)
+
+        return languages
+
 
 class ChatService:
-    def __init__(self, manager: ConnectionManager) -> None:
+    def __init__(self, manager: ConnectionManager, translator: TranslationProvider) -> None:
         self._manager = manager
+        self.translator: TranslationProvider = translator
     
     async def join_public_room(
             self,
@@ -109,7 +125,6 @@ class ChatService:
         }
 
         await self._manager.broadcast_to_room(room, message)
-
 
     async def leave_public_room(
             self,
@@ -156,7 +171,11 @@ class ChatService:
             "sender_language": sender.language,
             "recipient_nickname": recipient.nickname,
             "original_text": text,
-            "translations": {},
+            "translations": await self._translate_text(
+                sender=sender,
+                list_languages=set([recipient.language]),
+                text=text
+            ),
             "sent_at": sent_at,
         }
 
@@ -172,6 +191,12 @@ class ChatService:
         message_id: str,
         sent_at: str,
     ) -> None:
+
+        list_languages: set[str] = self._check_languages_to_translate(
+            sender=sender,
+            room=room,
+        )
+
         message: dict[str, object] = {
             "type": "room_message",
             "message_id": message_id,
@@ -179,8 +204,41 @@ class ChatService:
             "sender_nickname": sender.nickname,
             "sender_language": sender.language,
             "original_text": text,
-            "translations": {},
+            "translations": await self._translate_text(
+                sender=sender,
+                list_languages=list_languages,
+                text=text
+            ),
             "sent_at": sent_at,
         }
 
         await self._manager.broadcast_to_room(room, message)
+
+    def _check_languages_to_translate(self, *, sender: ActiveConnection, room: str) -> set[str]:
+        return self._manager.target_languages_room(
+            language=sender.language,
+            room=room,
+        )
+
+    async def _translate_text(
+        self,
+        *,
+        sender: ActiveConnection,
+        list_languages: set[str],
+        text: str
+    ) -> dict[str, str]:
+        if list_languages is None or len(list_languages) == 0:
+            return {}
+
+        translations: dict[str, str] = {}
+
+        list_languages.discard(sender.language)
+
+        for language in list_languages:
+            translations[language] = await self.translator.translate(
+            text=text,
+            source_language=sender.language,
+            target_language=language,
+        )
+
+        return translations

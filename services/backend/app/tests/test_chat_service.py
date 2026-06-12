@@ -1,4 +1,5 @@
 from app.services.chat import ChatService, ConnectionManager
+from app.services.translation.base import FakeTranslator
 
 
 class DummyWebSocket:
@@ -160,7 +161,7 @@ async def test_find_disconnected_connection_by_nickname() -> None:
 
 async def test_join_public_room_broadcasts_join_event() -> None:
     manager = ConnectionManager(max_connections=10)
-    service = ChatService(manager)
+    service = ChatService(manager, FakeTranslator())
     ws_joao = DummyWebSocket()
     ws_maria = DummyWebSocket()
 
@@ -184,7 +185,7 @@ async def test_join_public_room_broadcasts_join_event() -> None:
 
 async def test_leave_public_room_broadcasts_leave_event_to_remaining_members() -> None:
     manager = ConnectionManager(max_connections=10)
-    service = ChatService(manager)
+    service = ChatService(manager, FakeTranslator())
     ws_joao = DummyWebSocket()
     ws_maria = DummyWebSocket()
 
@@ -209,7 +210,7 @@ async def test_leave_public_room_broadcasts_leave_event_to_remaining_members() -
 
 async def test_send_private_message_sends_only_to_sender_and_recipient() -> None:
     manager = ConnectionManager(max_connections=10)
-    service = ChatService(manager)
+    service = ChatService(manager, FakeTranslator())
     ws_joao = DummyWebSocket()
     ws_maria = DummyWebSocket()
     ws_ana = DummyWebSocket()
@@ -233,7 +234,9 @@ async def test_send_private_message_sends_only_to_sender_and_recipient() -> None
         "sender_language": "Portuguese",
         "recipient_nickname": "maria",
         "original_text": "Hello",
-        "translations": {},
+        "translations": {
+            "English": "Portuguese -> English + Hello",
+        },
         "sent_at": "2026-06-03T12:00:00Z",
     }
 
@@ -244,7 +247,7 @@ async def test_send_private_message_sends_only_to_sender_and_recipient() -> None
 
 async def test_send_private_message_returns_error_when_recipient_is_missing() -> None:
     manager = ConnectionManager(max_connections=10)
-    service = ChatService(manager)
+    service = ChatService(manager, FakeTranslator())
     ws_joao = DummyWebSocket()
 
     joao = await manager.connect(ws_joao, nickname="joao", language="Portuguese")
@@ -267,7 +270,7 @@ async def test_send_private_message_returns_error_when_recipient_is_missing() ->
 
 async def test_send_room_message_broadcasts_to_room_members() -> None:
     manager = ConnectionManager(max_connections=10)
-    service = ChatService(manager)
+    service = ChatService(manager, FakeTranslator())
     ws_joao = DummyWebSocket()
     ws_maria = DummyWebSocket()
     ws_ana = DummyWebSocket()
@@ -294,10 +297,163 @@ async def test_send_room_message_broadcasts_to_room_members() -> None:
         "sender_nickname": "joao",
         "sender_language": "Portuguese",
         "original_text": "Hello",
-        "translations":  {},
+        "translations":  {
+            "English": "Portuguese -> English + Hello",
+        },
         "sent_at": "2026-06-01T12:00:00Z",
     }
 
     assert ws_joao.sent == [expected_message]
     assert ws_maria.sent == [expected_message]
     assert ws_ana.sent == []
+
+
+async def test_translation_property_after_send_message() -> None:
+    manager = ConnectionManager(max_connections=10)
+    ws_joao = DummyWebSocket()
+    ws_maria = DummyWebSocket()
+    ws_ana = DummyWebSocket()
+    ws_pedro = DummyWebSocket()
+    ws_jonny = DummyWebSocket()
+
+    joao = await manager.connect(ws_joao, nickname="joao", language="Portuguese")
+    maria = await manager.connect(ws_maria, nickname="maria", language="English")
+    ana = await manager.connect(ws_ana, nickname="ana", language="Spanish")
+    pedro = await manager.connect(ws_pedro, nickname="pedro", language="Portuguese")
+    jonny = await manager.connect(ws_jonny, nickname="jonny", language="English")
+
+    await manager.join_room(joao, room="general")
+    await manager.join_room(maria, room="general")
+    await manager.join_room(ana, room="general")
+    await manager.join_room(pedro, room="general")
+    await manager.join_room(jonny, room="general")
+
+    languages:set[str] = manager.target_languages_room(
+        language=joao.language,
+        room="general",
+    )
+
+    assert languages == {
+        "English",
+        "Spanish"
+    }
+
+
+async def test_check_languages_to_translate() -> None:
+    manager = ConnectionManager(max_connections=10)
+    service = ChatService(manager, FakeTranslator())
+    ws_joao = DummyWebSocket()
+    ws_maria = DummyWebSocket()
+    ws_ana = DummyWebSocket()
+    ws_pedro = DummyWebSocket()
+    ws_jonny = DummyWebSocket()
+
+    joao = await manager.connect(ws_joao, nickname="joao", language="Portuguese")
+    maria = await manager.connect(ws_maria, nickname="maria", language="English")
+    ana = await manager.connect(ws_ana, nickname="ana", language="Spanish")
+    pedro = await manager.connect(ws_pedro, nickname="pedro", language="Portuguese")
+    jonny = await manager.connect(ws_jonny, nickname="jonny", language="English")
+
+    await manager.join_room(joao, room="general")
+    await manager.join_room(maria, room="general")
+    await manager.join_room(ana, room="general")
+    await manager.join_room(pedro, room="general")
+    await manager.join_room(jonny, room="general")
+
+    await service.send_room_message(
+        joao,
+        room="general",
+        text="Hello",
+        message_id="msg-1",
+        sent_at="2026-06-01T12:00:00Z"
+    )
+
+    expected_message: dict[str, object] = {
+        "type": "room_message",
+        "message_id": "msg-1",
+        "room": "general",
+        "sender_nickname": "joao",
+        "sender_language": "Portuguese",
+        "original_text": "Hello",
+        "translations":  {
+            "English": "Portuguese -> English + Hello",
+            "Spanish": "Portuguese -> Spanish + Hello",
+        },
+        "sent_at": "2026-06-01T12:00:00Z",
+    }
+
+    assert ws_joao.sent == [expected_message]
+
+
+async def test_translate_message_when_chat_is_private_different_language() -> None:
+    manager = ConnectionManager(max_connections=10)
+    service = ChatService(manager=manager, translator=FakeTranslator())
+
+    ws_joao = DummyWebSocket()
+    ws_maria = DummyWebSocket()
+
+    joao = await manager.connect(ws_joao, nickname="joao", language="Portuguese")
+    maria = await manager.connect(ws_maria, nickname="maria", language="English")
+
+    await manager.join_room(joao, room="private-chat-room-01")
+    await manager.join_room(maria, room="private-chat-room-01")
+
+    await service.send_private_message(
+        joao,
+        recipient_nickname="maria",
+        text="Hello",
+        message_id='hello-01',
+        sent_at="2026-06-11T12:00:00Z",
+    )
+
+    expected_message: dict[str, object] = {
+        "message_id": "hello-01",
+        "original_text": "Hello",
+        "recipient_nickname": "maria",
+        "sender_language": "Portuguese",
+        "sender_nickname": "joao",
+        "sent_at": "2026-06-11T12:00:00Z",
+        "translations": {
+            "English": "Portuguese -> English + Hello",
+        },
+        "type": "private_message",
+    }
+
+    assert ws_joao.sent == [expected_message]
+    assert ws_maria.sent == [expected_message]
+
+
+async def test_translate_message_when_chat_is_private_same_language() -> None:
+    manager = ConnectionManager(max_connections=10)
+    service = ChatService(manager=manager, translator=FakeTranslator())
+
+    ws_joao = DummyWebSocket()
+    ws_maria = DummyWebSocket()
+
+    joao = await manager.connect(ws_joao, nickname="joao", language="Portuguese")
+    maria = await manager.connect(ws_maria, nickname="maria", language="Portuguese")
+
+    await manager.join_room(joao, room="private-chat-room-01")
+    await manager.join_room(maria, room="private-chat-room-01")
+
+    await service.send_private_message(
+        joao,
+        recipient_nickname="maria",
+        text="Ola",
+        message_id='ola-01',
+        sent_at="2026-06-11T12:00:00Z",
+    )
+
+    expected_message: dict[str, object] = {
+        "message_id": "ola-01",
+        "original_text": "Ola",
+        "recipient_nickname": "maria",
+        "sender_language": "Portuguese",
+        "sender_nickname": "joao",
+        "sent_at": "2026-06-11T12:00:00Z",
+        "translations": {},
+        "type": "private_message",
+    }
+
+    assert ws_joao.sent == [expected_message]
+    assert ws_maria.sent == [expected_message]
