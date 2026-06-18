@@ -4,7 +4,7 @@ This file is the entry point for Codex working on `chat-translation`. Keep it sm
 
 ## Project context
 
-`chat-translation` is a local-only learning project: a chat where users speaking different languages communicate, with translations produced by the Anthropic Claude API. The two deployable units are the **frontend** (React + Vite + TS) and the **backend** (FastAPI + Python 3.11). Everything runs locally via Docker Compose.
+`chat-translation` is a local-only learning project: a chat where users speaking different languages communicate, with translations produced by the OpenAI API. The two deployable units are the **frontend** (React + Vite + TS) and the **backend** (FastAPI + Python 3.11). Everything runs locally via Docker Compose.
 
 ## Permanent project policies
 

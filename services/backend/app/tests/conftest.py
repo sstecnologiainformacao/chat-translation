@@ -10,8 +10,8 @@ def _set_test_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("CHAT_PASSWORD", "test-pass")
     monkeypatch.setenv("JWT_SECRET", "a" * 64)
     monkeypatch.setenv("JWT_EXPIRES_MINUTES", "60")
-    monkeypatch.setenv("ANTHROPIC_API_KEY", "sk-ant-test")
-    monkeypatch.setenv("ANTHROPIC_MODEL", "claude-sonnet-4-6")
+    monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
+    monkeypatch.setenv("OPENAI_MODEL", "gpt-5.4-mini")
     # Reset the cached Settings between tests
     from app.core.config import get_settings
 

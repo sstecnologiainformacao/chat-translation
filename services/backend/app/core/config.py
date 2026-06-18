@@ -10,8 +10,8 @@ class Settings(BaseSettings):
     chat_password: str
     jwt_secret: str
     jwt_expires_minutes: int = 60
-    anthropic_api_key: str
-    anthropic_model: str = "claude-sonnet-4-6"
+    openai_api_key: str
+    openai_model: str = "gpt-5.4-mini"
 
 
 @lru_cache(maxsize=1)

@@ -13,7 +13,7 @@ Rules loaded when Codex touches `services/backend/`. Universal rules live in the
 ## Patterns
 
 - **Repository pattern:** every storage access goes through a `Protocol`-typed dependency. MVP ships `InMemoryMessageRepository`; Cycle 2 adds `SqlAlchemyMessageRepository`.
-- **Provider pattern:** external services (translation) are abstracted via `Protocol`. MVP ships `AnthropicTranslator`; OpenAI swap is a single env var.
+- **Provider pattern:** external services (translation) are abstracted via `Protocol`. MVP ships `OpenAITranslator`; provider details stay behind the translation interface.
 - **Settings:** `Settings(BaseSettings)` from `pydantic-settings`. Reads only process env vars; never resolves `.env` files in Python (avoids CWD ambiguity).
 - **JWT:** HS256 via `pyjwt[crypto]`. Token validated only at the WebSocket handshake (not per message).
 - **Async by default:** all routers and service methods are `async def`. Avoid sync I/O in the request path.
@@ -21,7 +21,7 @@ Rules loaded when Codex touches `services/backend/`. Universal rules live in the
 ## Testing conventions
 
 - `pytest` + `pytest-asyncio` (auto mode).
-- `app.dependency_overrides[get_provider] = lambda: FakeTranslator()` - never call the real Anthropic API in tests.
+- `app.dependency_overrides[get_provider] = lambda: FakeTranslator()` - never call the real OpenAI API in tests.
 - `monkeypatch.setenv` configures `Settings` per test without touching real env vars.
 - WebSocket tests use FastAPI's `TestClient.websocket_connect`.
 - Empty `tests/` directory is a review failure (template rule).
