@@ -6,11 +6,13 @@ class TranslationError(Exception):
 
 
 class TranslationProvider(Protocol):
-    async def translate(self, *, text: str, source_language: str, target_language: str) -> str:
+    async def translate(self, *, text: str, source_language: str, target_language: list[str]) -> str:
         ...
 
 
 class FakeTranslator:
 
-    async def translate(self, *, text: str, source_language: str, target_language: str) -> str:
-        return f"{source_language} -> {target_language} + {text}"
+    async def translate(self, *, text: str, source_language: str, target_language: list[str]) -> str:
+        languages = "".join(target_language)
+        return f"{source_language} -> {languages} + {text}"
+    

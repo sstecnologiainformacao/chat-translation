@@ -1,6 +1,11 @@
 from app.services.chat import ChatService, ConnectionManager
-from app.services.translation.base import FakeTranslator
+from app.services.translation.base import FakeTranslator, TranslationError
 
+
+class FakeTranslatorWithError:
+
+    async def translate(self, *, text: str, source_language: str, target_language: str) -> str:
+        raise TranslationError()
 
 class DummyWebSocket:
     def __init__(self) -> None:
@@ -457,3 +462,72 @@ async def test_translate_message_when_chat_is_private_same_language() -> None:
 
     assert ws_joao.sent == [expected_message]
     assert ws_maria.sent == [expected_message]
+
+
+async def test_translate_private_message_but_error() -> None:
+    manager = ConnectionManager(max_connections=10)
+    service = ChatService(manager=manager, translator=FakeTranslatorWithError())
+
+    ws_joao = DummyWebSocket()
+    ws_maria = DummyWebSocket()
+
+    joao = await manager.connect(ws_joao, nickname="joao", language="Portuguese")
+    maria = await manager.connect(ws_maria, nickname="maria", language="English")
+
+    await manager.join_room(joao, room="private-chat-room-01")
+    await manager.join_room(maria, room="private-chat-room-01")
+
+    await service.send_private_message(
+        joao,
+        recipient_nickname="maria",
+        text="Ola",
+        message_id='ola-01',
+        sent_at="2026-06-11T12:00:00Z",
+    )
+
+    expected_message: dict[str, object] = {
+        "type": "error",
+        "reason": "translation_failed",
+    }
+
+    assert ws_joao.sent == [expected_message]
+    assert ws_maria.sent == []
+
+
+async def test_translate_public_message_but_error() -> None:
+    manager = ConnectionManager(max_connections=10)
+    service = ChatService(manager=manager, translator=FakeTranslatorWithError())
+
+    ws_joao = DummyWebSocket()
+    ws_maria = DummyWebSocket()
+    ws_ana = DummyWebSocket()
+    ws_pedro = DummyWebSocket()
+    ws_jonny = DummyWebSocket()
+
+    joao = await manager.connect(ws_joao, nickname="joao", language="Portuguese")
+    maria = await manager.connect(ws_maria, nickname="maria", language="English")
+    ana = await manager.connect(ws_ana, nickname="ana", language="Spanish")
+    pedro = await manager.connect(ws_pedro, nickname="pedro", language="Portuguese")
+    jonny = await manager.connect(ws_jonny, nickname="jonny", language="English")
+
+    await manager.join_room(joao, room="general")
+    await manager.join_room(maria, room="general")
+    await manager.join_room(ana, room="general")
+    await manager.join_room(pedro, room="general")
+    await manager.join_room(jonny, room="general")
+
+    await service.send_room_message(
+        joao,
+        room="general",
+        text="Hello",
+        message_id="msg-1",
+        sent_at="2026-06-01T12:00:00Z"
+    )
+
+    expected_message: dict[str, object] = {
+        "type": "error",
+        "reason": "translation_failed",
+    }
+
+    assert ws_joao.sent == [expected_message]
+    assert ws_maria.sent == []
