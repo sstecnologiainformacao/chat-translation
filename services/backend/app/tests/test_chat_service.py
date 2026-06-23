@@ -1,10 +1,24 @@
 from app.services.chat import ChatService, ConnectionManager
-from app.services.translation.base import FakeTranslator, TranslationError
+from app.services.translation.base import (
+    FakeTranslator,
+    TranslationContext,
+    TranslationError,
+    TranslationResult,
+)
 
 
 class FakeTranslatorWithError:
+    def __init__(self) -> None:
+        ...
 
-    async def translate(self, *, text: str, source_language: str, target_language: str) -> str:
+    async def translate(
+        self,
+        *,
+        text: str,
+        source_language: str,
+        target_languages: set[str],
+        context: TranslationContext
+    ) -> TranslationResult:
         raise TranslationError()
 
 class DummyWebSocket:
@@ -240,7 +254,7 @@ async def test_send_private_message_sends_only_to_sender_and_recipient() -> None
         "recipient_nickname": "maria",
         "original_text": "Hello",
         "translations": {
-            "English": "Portuguese -> English + Hello",
+            "English": "Portuguese -> English + Hello"
         },
         "sent_at": "2026-06-03T12:00:00Z",
     }
@@ -303,7 +317,7 @@ async def test_send_room_message_broadcasts_to_room_members() -> None:
         "sender_language": "Portuguese",
         "original_text": "Hello",
         "translations":  {
-            "English": "Portuguese -> English + Hello",
+            "English": "Portuguese -> English + Hello"
         },
         "sent_at": "2026-06-01T12:00:00Z",
     }
@@ -373,6 +387,10 @@ async def test_check_languages_to_translate() -> None:
         sent_at="2026-06-01T12:00:00Z"
     )
 
+    expected_translations = {}
+    expected_translations["English"] = "Portuguese -> English + Hello"
+    expected_translations["Spanish"] = "Portuguese -> Spanish + Hello"
+
     expected_message: dict[str, object] = {
         "type": "room_message",
         "message_id": "msg-1",
@@ -380,10 +398,7 @@ async def test_check_languages_to_translate() -> None:
         "sender_nickname": "joao",
         "sender_language": "Portuguese",
         "original_text": "Hello",
-        "translations":  {
-            "English": "Portuguese -> English + Hello",
-            "Spanish": "Portuguese -> Spanish + Hello",
-        },
+        "translations":  expected_translations,
         "sent_at": "2026-06-01T12:00:00Z",
     }
 
@@ -419,7 +434,7 @@ async def test_translate_message_when_chat_is_private_different_language() -> No
         "sender_nickname": "joao",
         "sent_at": "2026-06-11T12:00:00Z",
         "translations": {
-            "English": "Portuguese -> English + Hello",
+            "English": "Portuguese -> English + Hello"
         },
         "type": "private_message",
     }

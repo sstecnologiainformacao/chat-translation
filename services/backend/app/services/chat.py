@@ -1,6 +1,11 @@
 from typing import Protocol
 
-from app.services.translation.base import TranslationError, TranslationProvider
+from app.services.translation.base import (
+    TranslationContext,
+    TranslationError,
+    TranslationProvider,
+    TranslationResult,
+)
 
 
 class WebSocketLike(Protocol):
@@ -171,6 +176,10 @@ class ChatService:
                 text=text
             )
 
+            result_translation = {}
+            if translations is not None:
+                result_translation = translations.translations
+
             message: dict[str, object] = {
                 "type": "private_message",
                 "message_id": message_id,
@@ -178,7 +187,7 @@ class ChatService:
                 "sender_language": sender.language,
                 "recipient_nickname": recipient.nickname,
                 "original_text": text,
-                "translations": translations,
+                "translations": result_translation,
                 "sent_at": sent_at,
             }
 
@@ -210,11 +219,13 @@ class ChatService:
         )
  
         try: 
-            translations = await self._translate_text(
+            translations_result: TranslationResult | None = await self._translate_text(
                 sender=sender,
                 list_languages=list_languages,
                 text=text
             )
+
+            translations_dict = getattr(translations_result, "translations", {})
 
             message: dict[str, object] = {
                 "type": "room_message",
@@ -223,7 +234,7 @@ class ChatService:
                 "sender_nickname": sender.nickname,
                 "sender_language": sender.language,
                 "original_text": text,
-                "translations": translations,
+                "translations": translations_dict,
                 "sent_at": sent_at,
             }
 
@@ -250,19 +261,19 @@ class ChatService:
         sender: ActiveConnection,
         list_languages: set[str],
         text: str
-    ) -> dict[str, str]:
+    ) -> TranslationResult | None:
         if len(list_languages) == 0:
-            return {}
+            return None
 
-        translations: dict[str, str] = {}
+        new_list_languages = set(list_languages)
+        new_list_languages.discard(sender.language)
 
-        list_languages.discard(sender.language)
-
-        for language in list_languages:
-            translations[language] = await self.translator.translate(
+        return await self.translator.translate(
             text=text,
             source_language=sender.language,
-            target_language=list([language]),
+            target_languages=new_list_languages,
+            context=TranslationContext(
+                context="needs to feel after",
+                messages=[]
+            )
         )
-
-        return translations
