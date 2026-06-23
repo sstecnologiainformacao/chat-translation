@@ -1,13 +1,22 @@
-from app.services.translation.base import FakeTranslator, TranslationProvider
+from app.services.translation.base import (
+    FakeTranslator,
+    TranslationContext,
+    TranslationProvider,
+    TranslationResult,
+)
 
 
 async def test_translation() -> None:
     translator: TranslationProvider = FakeTranslator()
+    context: TranslationContext = TranslationContext(context="", messages=[])
 
-    result = await translator.translate(
+    result: TranslationResult = await translator.translate(
         text="hello",
         source_language="Portuguese",
-        target_language="English",
+        target_languages=set(["English"]),
+        context=context,
     )
 
-    assert result == "Portuguese -> English + hello"
+    assert result.translations == {
+        "English": "Portuguese -> English + hello"
+    }
