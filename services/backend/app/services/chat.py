@@ -5,6 +5,7 @@ from app.services.translation.base import (
     TranslationError,
     TranslationProvider,
     TranslationResult,
+    Message,
 )
 
 
@@ -20,11 +21,41 @@ class ActiveConnection:
         self.language = language
 
 
+class Conversation:
+    def __init__(self, *, key: str):
+        self.context: TranslationContext = TranslationContext()
+        self.connections: set[ActiveConnection] = set[ActiveConnection]()
+        self.key: str = f"room:{key}"
+        self.messages: list[Message] = list[Message]()
+
+    def get_key(self):
+        return self.key
+    
+    def add_coonection(self, connection: ActiveConnection):
+        self.connections.add(connection)
+
+    def remove_connection(self, connection: ActiveConnection):
+        self.connections.discard(connection)
+
+    def add_message(self, *, message: Message):
+        self.messages.append(message)
+
+        if len(self.context.messages) == 5:
+            try:
+                self.context.messages.remove(0)
+            except:
+                ...
+        
+        self.context.messages.append(message)
+
+    def update_context(self, *, new_context: str):
+        self.context.context = new_context
+
 class ConnectionManager:
     def __init__(self, *, max_connections: int = 2) -> None:
         self.max_connections = max_connections
         self._connections: list[ActiveConnection] = []
-        self._rooms: dict[str, list[ActiveConnection]] = {}
+        self._rooms: dict[str, Conversation] = {}
 
     async def connect (
             self,
@@ -46,32 +77,26 @@ class ConnectionManager:
                 room_connections.remove(connection)
 
     async def join_room(self, connection: ActiveConnection, *, room: str) -> None:
-        room_connections = self._rooms.setdefault(room, [])
-
-        if connection not in room_connections:
-            room_connections.append(connection)
+        conversation: Conversation = self._rooms.setdefault(room, Conversation(key=room))
+        conversation.add_coonection(connection)
 
     async def leave_room(self, connection: ActiveConnection, *, room: str) -> None:
-        room_connections = self._rooms.get(room)
-
-        if room_connections is None:
-            return
-        
-        if connection in room_connections:
-            room_connections.remove(connection)
+        conversation: Conversation = self._rooms.get(room)
+        conversation.remove_connection(connection)
 
     async def broadcast_to_room(
             self,
             room: str,
             message: dict[str, object]
     ) -> None:
-        room_connections = self._rooms.get(room, [])
+        conversation: Conversation = self._rooms.get(room, Conversation(key=room))
 
-        for connection in room_connections:
+        for connection in conversation.connections:
             await self.send_to(connection, message)
 
     def room_connection_count(self, room: str) -> int:
-        return len(self._rooms.get(room, []))
+        conversation: Conversation = self._rooms.get(room, Conversation(key=room))
+        return len(conversation.connections)
 
     async def send_to(
         self,
@@ -95,13 +120,13 @@ class ConnectionManager:
         return None
     
     def target_languages_room(self, *, language: str, room: str) -> set[str]:
-        room_connections = self._rooms.get(room)
+        conversation: Conversation = self._rooms.get(room)
         languages: set[str] = set()
 
-        if room_connections is None:
+        if conversation is None:
             return languages
 
-        for connection in room_connections:
+        for connection in conversation.connections:
             if connection.language != language:
                 languages.add(connection.language)
 
@@ -170,10 +195,12 @@ class ChatService:
             return
 
         try:
+            conversation: Conversation = self._get_room(f"room:{sender.nickname}:{recipient_nickname}")
             translations = await self._translate_text(
                 sender=sender,
                 list_languages=set([recipient.language]),
-                text=text
+                text=text,
+                context=conversation.context
             )
 
             result_translation = {}
@@ -217,12 +244,15 @@ class ChatService:
             sender=sender,
             room=room,
         )
- 
+
+        conversation: Conversation = self._get_room(room)
+
         try: 
             translations_result: TranslationResult | None = await self._translate_text(
                 sender=sender,
                 list_languages=list_languages,
-                text=text
+                text=text,
+                context=conversation.context.context
             )
 
             translations_dict = getattr(translations_result, "translations", {})
@@ -254,13 +284,18 @@ class ChatService:
             language=sender.language,
             room=room,
         )
+    
+    def _get_room(self, *, room: str) -> Conversation:
+        return self._manager._rooms.get(room);
+
 
     async def _translate_text(
         self,
         *,
         sender: ActiveConnection,
         list_languages: set[str],
-        text: str
+        text: str,
+        context: str,
     ) -> TranslationResult | None:
         if len(list_languages) == 0:
             return None
@@ -273,7 +308,7 @@ class ChatService:
             source_language=sender.language,
             target_languages=new_list_languages,
             context=TranslationContext(
-                context="needs to feel after",
+                context=context,
                 messages=[]
             )
         )
