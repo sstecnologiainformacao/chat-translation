@@ -71,7 +71,7 @@ async def test_broadcast_sends_message_to_all_connections() -> None:
     message: dict[str, object] = {
         "type": 'system_event',
         "event": "user_joined",
-        "room": "general",
+        "room": "room:general",
         "nickname": "joao",
         "language": "Portuguese",
     }
@@ -87,20 +87,20 @@ async def test_join_room_tracks_room_membership() -> None:
     ws = DummyWebSocket()
     connection = await manager.connect(ws, nickname="joao", language="Portuguese")
 
-    await manager.join_room(connection, room="general")
+    await manager.join_room(connection, room="room:general")
 
-    assert manager.room_connection_count("general") == 1
+    assert manager.room_connection_count("room:general") == 1
 
 
 async def test_leave_room_removes_room_membership() -> None:
     manager = ConnectionManager(max_connections=10)
     ws = DummyWebSocket()
     connection = await manager.connect(ws, nickname="joao", language="Portuguese")
-    await manager.join_room(connection, room="general")
+    await manager.join_room(connection, room="room:general")
 
-    await manager.leave_room(connection, room="general")
+    await manager.leave_room(connection, room="room:general")
 
-    assert manager.room_connection_count("general") == 0
+    assert manager.room_connection_count("room:general") == 0
 
 
 async def test_broadcast_to_room_sends_only_to_room_members() -> None:
@@ -113,13 +113,13 @@ async def test_broadcast_to_room_sends_only_to_room_members() -> None:
     maria = await manager.connect(ws_maria, nickname="maria", language="English")
     await manager.connect(ws_ana, nickname="ana", language="Spanish")
 
-    await manager.join_room(joao, room="general")
-    await manager.join_room(maria, room="general")
+    await manager.join_room(joao, room="room:general")
+    await manager.join_room(maria, room="room:general")
 
     message: dict[str, object] = {
         "type": "room_message",
         "message_id": "msg-1",
-        "room": "general",
+        "room": "room:general",
         "sender_nickname": "joao",
         "sender_language": "Portuguese",
         "original_text": "Hello",
@@ -127,7 +127,7 @@ async def test_broadcast_to_room_sends_only_to_room_members() -> None:
         "sent_at": "2026-06-02T12:00:00Z",
     }
 
-    await manager.broadcast_to_room("general", message)
+    await manager.broadcast_to_room("room:general", message)
 
     assert ws_joao.sent == [message]
     assert ws_maria.sent == [message]
@@ -186,14 +186,14 @@ async def test_join_public_room_broadcasts_join_event() -> None:
 
     joao = await manager.connect(ws_joao, nickname="joao", language="Portuguese")
     maria = await manager.connect(ws_maria, nickname="maria", language="English")
-    await manager.join_room(maria, room="general")
+    await manager.join_room(maria, room="room:general")
 
-    await service.join_public_room(joao, room="general")
+    await service.join_public_room(joao, room="room:general")
 
     expected_message: dict[str, object] = {
         "type": "system_event",
         "event": "user_joined",
-        "room": "general",
+        "room": "room:general",
         "nickname": "joao",
         "language": "Portuguese",
     }
@@ -210,15 +210,15 @@ async def test_leave_public_room_broadcasts_leave_event_to_remaining_members() -
 
     joao = await manager.connect(ws_joao, nickname="joao", language="Portuguese")
     maria = await manager.connect(ws_maria, nickname="maria", language="English")
-    await manager.join_room(joao, room="general")
-    await manager.join_room(maria, room="general")
+    await manager.join_room(joao, room="room:general")
+    await manager.join_room(maria, room="room:general")
 
-    await service.leave_public_room(joao, room="general")
+    await service.leave_public_room(joao, room="room:general")
 
     expected_message: dict[str, object] = {
         "type": "system_event",
         "event": "user_left",
-        "room": "general",
+        "room": "room:general",
         "nickname": "joao",
         "language": "Portuguese",
     }
@@ -294,16 +294,15 @@ async def test_send_room_message_broadcasts_to_room_members() -> None:
     ws_maria = DummyWebSocket()
     ws_ana = DummyWebSocket()
 
-    joao = await manager.connect(ws_joao, nickname="joao", language="Portuguese")
-    maria = await manager.connect(ws_maria, nickname="maria", language="English")
-    await manager.connect(ws_ana, nickname="ana", language="Spanish")
+    joao = await service.connect(ws_joao, nickname="joao", language="Portuguese")
+    maria = await service.connect(ws_maria, nickname="maria", language="English")
+    await service.connect(ws_ana, nickname="ana", language="Spanish")
 
-    await manager.join_room(joao, room="general")
-    await manager.join_room(maria, room="general")
+    await service.join_room(joao, room="general")
+    await service.join_room(maria, room="general")
 
     await service.send_room_message(
         joao,
-        room="general",
         text="Hello",
         message_id="msg-1",
         sent_at="2026-06-01T12:00:00Z"
@@ -341,15 +340,15 @@ async def test_translation_property_after_send_message() -> None:
     pedro = await manager.connect(ws_pedro, nickname="pedro", language="Portuguese")
     jonny = await manager.connect(ws_jonny, nickname="jonny", language="English")
 
-    await manager.join_room(joao, room="general")
-    await manager.join_room(maria, room="general")
-    await manager.join_room(ana, room="general")
-    await manager.join_room(pedro, room="general")
-    await manager.join_room(jonny, room="general")
+    await manager.join_room(joao, room="room:general")
+    await manager.join_room(maria, room="room:general")
+    await manager.join_room(ana, room="room:general")
+    await manager.join_room(pedro, room="room:general")
+    await manager.join_room(jonny, room="room:general")
 
     languages:set[str] = manager.target_languages_room(
         language=joao.language,
-        room="general",
+        room="room:general",
     )
 
     assert languages == {
@@ -367,21 +366,20 @@ async def test_check_languages_to_translate() -> None:
     ws_pedro = DummyWebSocket()
     ws_jonny = DummyWebSocket()
 
-    joao = await manager.connect(ws_joao, nickname="joao", language="Portuguese")
-    maria = await manager.connect(ws_maria, nickname="maria", language="English")
-    ana = await manager.connect(ws_ana, nickname="ana", language="Spanish")
-    pedro = await manager.connect(ws_pedro, nickname="pedro", language="Portuguese")
-    jonny = await manager.connect(ws_jonny, nickname="jonny", language="English")
+    joao = await service.connect(ws_joao, nickname="joao", language="Portuguese")
+    maria = await service.connect(ws_maria, nickname="maria", language="English")
+    ana = await service.connect(ws_ana, nickname="ana", language="Spanish")
+    pedro = await service.connect(ws_pedro, nickname="pedro", language="Portuguese")
+    jonny = await service.connect(ws_jonny, nickname="jonny", language="English")
 
-    await manager.join_room(joao, room="general")
-    await manager.join_room(maria, room="general")
-    await manager.join_room(ana, room="general")
-    await manager.join_room(pedro, room="general")
-    await manager.join_room(jonny, room="general")
+    await service.join_room(joao, room="general")
+    await service.join_room(maria, room="general")
+    await service.join_room(ana, room="general")
+    await service.join_room(pedro, room="general")
+    await service.join_room(jonny, room="general")
 
     await service.send_room_message(
         joao,
-        room="general",
         text="Hello",
         message_id="msg-1",
         sent_at="2026-06-01T12:00:00Z"
@@ -525,15 +523,14 @@ async def test_create_public_chat_context_key() -> None:
     pedro = await manager.connect(ws_pedro, nickname="pedro", language="Portuguese")
     jonny = await manager.connect(ws_jonny, nickname="jonny", language="English")
 
-    await manager.join_room(joao, room="general")
-    await manager.join_room(maria, room="general")
-    await manager.join_room(ana, room="general")
-    await manager.join_room(pedro, room="general")
-    await manager.join_room(jonny, room="general")
+    await manager.join_room(joao, room="room:general")
+    await manager.join_room(maria, room="room:general")
+    await manager.join_room(ana, room="room:general")
+    await manager.join_room(pedro, room="room:general")
+    await manager.join_room(jonny, room="room:general")
 
     await service.send_room_message(
         joao,
-        room="general",
         text="Hello",
         message_id="msg-1",
         sent_at="2026-06-01T12:00:00Z"
@@ -556,15 +553,14 @@ async def test_translate_public_message_but_error() -> None:
     pedro = await manager.connect(ws_pedro, nickname="pedro", language="Portuguese")
     jonny = await manager.connect(ws_jonny, nickname="jonny", language="English")
 
-    await manager.join_room(joao, room="general")
-    await manager.join_room(maria, room="general")
-    await manager.join_room(ana, room="general")
-    await manager.join_room(pedro, room="general")
-    await manager.join_room(jonny, room="general")
+    await manager.join_room(joao, room="room:general")
+    await manager.join_room(maria, room="room:general")
+    await manager.join_room(ana, room="room:general")
+    await manager.join_room(pedro, room="room:general")
+    await manager.join_room(jonny, room="room:general")
 
     await service.send_room_message(
         joao,
-        room="general",
         text="Hello",
         message_id="msg-1",
         sent_at="2026-06-01T12:00:00Z"
