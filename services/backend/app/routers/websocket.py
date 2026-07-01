@@ -8,12 +8,9 @@ from starlette.websockets import WebSocketDisconnect
 from app.core.security import InvalidTokenError, decode_jwt
 from app.schemas.auth import TokenPayload
 from app.schemas.messages import ClientMessage
-from app.services.chat import ChatService, ConnectionManager
-from app.services.translation.base import FakeTranslator
 
 router = APIRouter(tags=["websocket"])
 client_message_adapter: TypeAdapter[ClientMessage] = TypeAdapter(ClientMessage)
-chat = ChatService(ConnectionManager(max_connections=10), FakeTranslator())
 
 
 @router.websocket("/ws/chat")
@@ -22,6 +19,7 @@ async def chat_websocket(websocket: WebSocket, token: str | None = None) -> None
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return 
     
+    chat = websocket.app.state.chat_service
     try:
         token_payload: TokenPayload = decode_jwt(token)
     except InvalidTokenError:
