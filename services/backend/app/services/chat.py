@@ -23,10 +23,7 @@ class ActiveConnection:
 
 class Conversation:
     def __init__(self, *, key: str):
-        self.context: TranslationContext = TranslationContext(
-            context="",
-            messages=[],
-        )
+        self.context: TranslationContext = TranslationContext.new_instance()
         self.connections: set[ActiveConnection] = set[ActiveConnection]()
         self.key: str = key
         self.messages: list[Message] = list[Message]()
@@ -48,7 +45,7 @@ class Conversation:
                 self.context.messages.pop(0)
             except Exception:
                 ...
-        
+
         self.context.messages.append(message)
 
     def update_context(self, *, new_context: str) -> None:
@@ -246,6 +243,10 @@ class ChatService:
                     "sent_at": sent_at,
                 }
 
+                if translations is not None and translations.context_update is not None:
+                    conversation.update_context(
+                        new_context=translations.context_update.summary
+                    )
                 await self._manager.send_to(sender, message)
                 await self._manager.send_to(recipient, message)
             else:
