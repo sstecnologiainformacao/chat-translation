@@ -1,4 +1,4 @@
-from typing import Protocol
+from typing import Protocol, Self
 
 
 class Message:
@@ -16,6 +16,9 @@ class TranslationContext:
         self.context = context
         self.messages = messages
 
+    @classmethod
+    def new_instance(cls) -> Self:
+        return cls(context="", messages=[])
 
 class TranslationContextUpdate:
     def __init__(
