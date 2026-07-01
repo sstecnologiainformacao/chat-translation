@@ -1,12 +1,18 @@
 from typing import Protocol
 
 
+class Message:
+    def __init__(self, *, message: str, nickname: str):
+        self.message = message
+        self.nickname = nickname
+
+
 class TranslationError(Exception):
     "Raise an exception when we have an error during the translation process"
 
 
 class TranslationContext:
-    def __init__(self, *, context: str, messages: list[str]):
+    def __init__(self, *, context: str, messages: list[Message]):
         self.context = context
         self.messages = messages
 

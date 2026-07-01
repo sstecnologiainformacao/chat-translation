@@ -13,8 +13,7 @@ from app.services.translation.base import FakeTranslator
 
 router = APIRouter(tags=["websocket"])
 client_message_adapter: TypeAdapter[ClientMessage] = TypeAdapter(ClientMessage)
-manager = ConnectionManager(max_connections=10)
-chat = ChatService(manager, FakeTranslator())
+chat = ChatService(ConnectionManager(max_connections=10), FakeTranslator())
 
 
 @router.websocket("/ws/chat")
@@ -30,12 +29,12 @@ async def chat_websocket(websocket: WebSocket, token: str | None = None) -> None
         return
     
     await websocket.accept()
-    connection = await manager.connect(
+    connection = await chat.connect(
         websocket,
         nickname=token_payload.nickname,
         language=token_payload.language
     )
-    await manager.join_room(
+    await chat.join_room(
         connection,
         room="general"
     )
@@ -53,7 +52,6 @@ async def chat_websocket(websocket: WebSocket, token: str | None = None) -> None
                 if validated.type == "room_message":
                     await chat.send_room_message(
                         connection,
-                        room=validated.room,
                         text=validated.text,
                         message_id=str(uuid.uuid4()),
                         sent_at=date_str
@@ -76,5 +74,5 @@ async def chat_websocket(websocket: WebSocket, token: str | None = None) -> None
                 )
 
     except WebSocketDisconnect:
-        await manager.disconnect(connection)
+        await chat.disconnect(connection)
         return

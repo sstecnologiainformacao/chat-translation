@@ -31,6 +31,11 @@ The structural contract is `../chat-translation-docs/project-structure.md`. If r
 - Frontend (Vite, shadcn/ui, file-size limits): `services/frontend/AGENTS.md`
 - ADRs (template, naming, statuses): `../chat-translation-docs/agent-guidelines/architecture-decision-guidelines.md`
 
+## GitHub workflow notes
+
+- The GitHub CLI is available at `/opt/homebrew/bin/gh`; Codex's default `PATH` may not include Homebrew.
+- If `gh` cannot reach `api.github.com` from the sandbox, retry the same command with escalated network permission.
+
 ## Forbidden anti-patterns
 
 Loose Markdown at the root unless it is project metadata (`README.md`, `PROJECT_STRUCTURE_TEMPLATE.md`, `AGENTS.md`); committed `node_modules/`, `.venv/`, `__pycache__/`; logs (`*.log`), backups (`*.bak`, `*.old`), dumps (`*.dump`); copy-pasted code between services; `:latest` Docker tags; per-service IaC; per-environment shared Terraform state.
