@@ -1,10 +1,10 @@
 from app.services.chat import ChatService, ConnectionManager
 from app.services.translation.base import (
-    FakeTranslator,
     TranslationContext,
     TranslationError,
     TranslationResult,
 )
+from app.services.translation.fake_translator import FakeTranslator
 
 
 class FakeTranslatorWithError:
