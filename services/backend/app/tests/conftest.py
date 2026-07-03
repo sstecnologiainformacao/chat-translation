@@ -12,6 +12,7 @@ def _set_test_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("JWT_EXPIRES_MINUTES", "60")
     monkeypatch.setenv("OPENAI_API_KEY", "sk-test")
     monkeypatch.setenv("OPENAI_MODEL", "gpt-5.4-mini")
+    monkeypatch.setenv("IS_DEVELOPMENT", "True")
     # Reset the cached Settings between tests
     from app.core.config import get_settings
 
