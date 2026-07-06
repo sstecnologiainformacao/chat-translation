@@ -6,7 +6,6 @@ class Message:
         self.message = message
         self.nickname = nickname
 
-
 class TranslationError(Exception):
     "Raise an exception when we have an error during the translation process"
 
@@ -19,6 +18,7 @@ class TranslationContext:
     @classmethod
     def new_instance(cls) -> Self:
         return cls(context="", messages=[])
+
 
 class TranslationContextUpdate:
     def __init__(
@@ -56,4 +56,3 @@ class TranslationProvider(Protocol):
             context: TranslationContext
         ) -> TranslationResult:
         ...
-

@@ -8,13 +8,13 @@ from app.services.translation.base import (
 class FakeTranslator:
 
     async def translate(
-            self,
-            *,
-            text: str,
-            source_language: str,
-            target_languages: set[str],
-            context: TranslationContext
-        ) -> TranslationResult:
+        self,
+        *,
+        text: str,
+        source_language: str,
+        target_languages: set[str],
+        context: TranslationContext
+    ) -> TranslationResult:
         new_target_languages = set(target_languages)
         new_target_languages.discard(source_language)
         if len(new_target_languages) == 0:
