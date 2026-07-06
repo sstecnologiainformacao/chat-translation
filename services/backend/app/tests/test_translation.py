@@ -2,6 +2,7 @@ import pytest
 
 from app.core.config import get_settings
 from app.services.translation.base import (
+    Message,
     TranslationContext,
     TranslationError,
     TranslationProvider,
@@ -80,3 +81,34 @@ async def test_raise_translation_error_translator_not_implemented(
                 messages=[]
             )
         )
+
+async def test_build_parameters_to_send_open_ai() -> None:
+    translator: OpenAITranslator = OpenAITranslator(api_key="the-key", model="the-model")
+
+    result: dict[str, object] = translator._build_api_parameters(
+        text="Test",
+        source_language="Portuguese",
+        target_languages=set(["English", "Spanish"]),
+        context=TranslationContext(
+            context="The context",
+            messages=[Message(message="a message", nickname="JL")]
+        )
+    )
+
+    expected_result = {
+        "model": "the-model",
+        "reasoning": { "effort": "low" },
+        "instructions": 
+            (
+                'You\'re a great translator. '
+                'You need to translate the text present on the attribute "input" '
+                'and that was wrote in Portuguese to English, Spanish. '
+                'Translate the text using this context "The context", '
+                'and the last messages: nickname: JL, message: a message;'
+            ),
+        "input": "Test",
+    }
+
+    assert result["model"] == expected_result["model"]
+    assert result["instructions"] == expected_result["instructions"]
+    assert result["input"] == expected_result["input"]
