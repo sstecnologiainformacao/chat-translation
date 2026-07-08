@@ -8,8 +8,7 @@ from app.services.translation.fake_translator import FakeTranslator
 
 
 class FakeTranslatorWithError:
-    def __init__(self) -> None:
-        ...
+    def __init__(self) -> None: ...
 
     async def translate(
         self,
@@ -17,9 +16,10 @@ class FakeTranslatorWithError:
         text: str,
         source_language: str,
         target_languages: set[str],
-        context: TranslationContext
+        context: TranslationContext,
     ) -> TranslationResult:
         raise TranslationError()
+
 
 class DummyWebSocket:
     def __init__(self) -> None:
@@ -69,7 +69,7 @@ async def test_broadcast_sends_message_to_all_connections() -> None:
     await manager.connect(ws_joao, nickname="joao", language="Portuguese")
     await manager.connect(ws_maria, nickname="maria", language="English")
     message: dict[str, object] = {
-        "type": 'system_event',
+        "type": "system_event",
         "event": "user_joined",
         "room": "room:general",
         "nickname": "joao",
@@ -253,9 +253,7 @@ async def test_send_private_message_sends_only_to_sender_and_recipient() -> None
         "sender_language": "Portuguese",
         "recipient_nickname": "maria",
         "original_text": "Hello",
-        "translations": {
-            "English": "Portuguese -> English + Hello"
-        },
+        "translations": {"English": "Portuguese -> English + Hello"},
         "sent_at": "2026-06-03T12:00:00Z",
     }
 
@@ -302,10 +300,7 @@ async def test_send_room_message_broadcasts_to_room_members() -> None:
     await service.join_room(maria, room="general")
 
     await service.send_room_message(
-        joao,
-        text="Hello",
-        message_id="msg-1",
-        sent_at="2026-06-01T12:00:00Z"
+        joao, text="Hello", message_id="msg-1", sent_at="2026-06-01T12:00:00Z"
     )
 
     expected_message: dict[str, object] = {
@@ -315,9 +310,7 @@ async def test_send_room_message_broadcasts_to_room_members() -> None:
         "sender_nickname": "joao",
         "sender_language": "Portuguese",
         "original_text": "Hello",
-        "translations":  {
-            "English": "Portuguese -> English + Hello"
-        },
+        "translations": {"English": "Portuguese -> English + Hello"},
         "sent_at": "2026-06-01T12:00:00Z",
     }
 
@@ -346,15 +339,12 @@ async def test_translation_property_after_send_message() -> None:
     await manager.join_room(pedro, room="room:general")
     await manager.join_room(jonny, room="room:general")
 
-    languages:set[str] = manager.target_languages_room(
+    languages: set[str] = manager.target_languages_room(
         language=joao.language,
         room="room:general",
     )
 
-    assert languages == {
-        "English",
-        "Spanish"
-    }
+    assert languages == {"English", "Spanish"}
 
 
 async def test_check_languages_to_translate() -> None:
@@ -379,10 +369,7 @@ async def test_check_languages_to_translate() -> None:
     await service.join_room(jonny, room="general")
 
     await service.send_room_message(
-        joao,
-        text="Hello",
-        message_id="msg-1",
-        sent_at="2026-06-01T12:00:00Z"
+        joao, text="Hello", message_id="msg-1", sent_at="2026-06-01T12:00:00Z"
     )
 
     expected_translations = {}
@@ -396,7 +383,7 @@ async def test_check_languages_to_translate() -> None:
         "sender_nickname": "joao",
         "sender_language": "Portuguese",
         "original_text": "Hello",
-        "translations":  expected_translations,
+        "translations": expected_translations,
         "sent_at": "2026-06-01T12:00:00Z",
     }
 
@@ -420,7 +407,7 @@ async def test_translate_message_when_chat_is_private_different_language() -> No
         joao,
         recipient_nickname="maria",
         text="Hello",
-        message_id='hello-01',
+        message_id="hello-01",
         sent_at="2026-06-11T12:00:00Z",
     )
 
@@ -431,9 +418,7 @@ async def test_translate_message_when_chat_is_private_different_language() -> No
         "sender_language": "Portuguese",
         "sender_nickname": "joao",
         "sent_at": "2026-06-11T12:00:00Z",
-        "translations": {
-            "English": "Portuguese -> English + Hello"
-        },
+        "translations": {"English": "Portuguese -> English + Hello"},
         "type": "private_message",
     }
 
@@ -458,7 +443,7 @@ async def test_translate_message_when_chat_is_private_same_language() -> None:
         joao,
         recipient_nickname="maria",
         text="Ola",
-        message_id='ola-01',
+        message_id="ola-01",
         sent_at="2026-06-11T12:00:00Z",
     )
 
@@ -494,7 +479,7 @@ async def test_translate_private_message_but_error() -> None:
         joao,
         recipient_nickname="maria",
         text="Ola",
-        message_id='ola-01',
+        message_id="ola-01",
         sent_at="2026-06-11T12:00:00Z",
     )
 
@@ -530,10 +515,7 @@ async def test_create_public_chat_context_key() -> None:
     await manager.join_room(jonny, room="room:general")
 
     await service.send_room_message(
-        joao,
-        text="Hello",
-        message_id="msg-1",
-        sent_at="2026-06-01T12:00:00Z"
+        joao, text="Hello", message_id="msg-1", sent_at="2026-06-01T12:00:00Z"
     )
 
 
@@ -560,10 +542,7 @@ async def test_translate_public_message_but_error() -> None:
     await manager.join_room(jonny, room="room:general")
 
     await service.send_room_message(
-        joao,
-        text="Hello",
-        message_id="msg-1",
-        sent_at="2026-06-01T12:00:00Z"
+        joao, text="Hello", message_id="msg-1", sent_at="2026-06-01T12:00:00Z"
     )
 
     expected_message: dict[str, object] = {

@@ -12,9 +12,9 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 @router.post("/login", response_model=LoginResponse)
 async def login(payload: LoginRequest) -> LoginResponse:
     settings = get_settings()
-    credentials_match = compare_digest(
-        payload.username, settings.chat_user
-    ) and compare_digest(payload.password, settings.chat_password)
+    credentials_match = compare_digest(payload.username, settings.chat_user) and compare_digest(
+        payload.password, settings.chat_password
+    )
 
     if not credentials_match:
         raise HTTPException(

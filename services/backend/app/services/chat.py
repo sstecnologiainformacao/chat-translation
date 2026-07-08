@@ -30,7 +30,7 @@ class Conversation:
 
     def get_key(self) -> str:
         return self.key
-    
+
     def add_coonection(self, connection: ActiveConnection) -> None:
         self.connections.add(connection)
 
@@ -51,27 +51,28 @@ class Conversation:
     def update_context(self, *, new_context: str) -> None:
         self.context.context = new_context
 
+
 class ConnectionManager:
     def __init__(self, *, max_connections: int = 2) -> None:
         self.max_connections = max_connections
         self._connections: list[ActiveConnection] = []
         self._rooms: dict[str, Conversation] = {}
 
-    async def connect (
-            self,
-            ws: WebSocketLike,
-            *, 
-            nickname: str,
-            language: str,
+    async def connect(
+        self,
+        ws: WebSocketLike,
+        *,
+        nickname: str,
+        language: str,
     ) -> ActiveConnection:
         connection = ActiveConnection(ws, nickname=nickname, language=language)
         self._connections.append(connection)
         return connection
-    
+
     async def disconnect(self, connection: ActiveConnection) -> None:
         if connection in self._connections:
             self._connections.remove(connection)
-        
+
         for conversation in self._rooms.values():
             if connection in conversation.connections:
                 conversation.connections.remove(connection)
@@ -86,11 +87,7 @@ class ConnectionManager:
         if conversation is not None:
             conversation.remove_connection(connection)
 
-    async def broadcast_to_room(
-            self,
-            room: str,
-            message: dict[str, object]
-    ) -> None:
+    async def broadcast_to_room(self, room: str, message: dict[str, object]) -> None:
         conversation: Conversation = self._rooms.get(room, Conversation(key=room))
 
         for connection in conversation.connections:
@@ -113,14 +110,14 @@ class ConnectionManager:
 
     def connection_count(self) -> int:
         return len(self._connections)
-    
+
     def find_by_nickname(self, nickname: str) -> ActiveConnection | None:
         for connection in self._connections:
             if connection.nickname == nickname:
                 return connection
-            
+
         return None
-    
+
     def target_languages_room(self, *, language: str, room: str) -> set[str]:
         conversation: Conversation | None = self.get_room(room=room)
         if conversation is not None:
@@ -155,14 +152,14 @@ class ChatService:
     def build_room_key(self, raw_key: str) -> str:
         room_name = raw_key
         if raw_key == "general":
-            room_name = f'room:{raw_key}'
+            room_name = f"room:{raw_key}"
         return room_name
-    
+
     async def join_public_room(
-            self,
-            connection: ActiveConnection,
-            *,
-            room: str,
+        self,
+        connection: ActiveConnection,
+        *,
+        room: str,
     ) -> None:
         await self._manager.join_room(connection, room=room)
 
@@ -171,16 +168,16 @@ class ChatService:
             "event": "user_joined",
             "room": room,
             "nickname": connection.nickname,
-            "language": connection.language
+            "language": connection.language,
         }
 
         await self._manager.broadcast_to_room(room, message)
 
     async def leave_public_room(
-            self,
-            connection: ActiveConnection,
-            *,
-            room: str,
+        self,
+        connection: ActiveConnection,
+        *,
+        room: str,
     ) -> None:
         await self._manager.leave_room(connection, room=room)
 
@@ -195,13 +192,13 @@ class ChatService:
         await self._manager.broadcast_to_room(room, message)
 
     async def send_private_message(
-            self,
-            sender: ActiveConnection,
-            *,
-            recipient_nickname: str,
-            text: str,
-            message_id: str,
-            sent_at: str
+        self,
+        sender: ActiveConnection,
+        *,
+        recipient_nickname: str,
+        text: str,
+        message_id: str,
+        sent_at: str,
     ) -> None:
         recipient = self._manager.find_by_nickname(recipient_nickname)
 
@@ -216,7 +213,7 @@ class ChatService:
 
         try:
             sorted_users_nicks = sorted([sender.nickname, recipient_nickname])
-            conversation: Conversation | None =self._get_room(
+            conversation: Conversation | None = self._get_room(
                 room=f"private:{':'.join(sorted_users_nicks)}"
             )
 
@@ -225,7 +222,7 @@ class ChatService:
                     sender=sender,
                     list_languages=set([recipient.language]),
                     text=text,
-                    context=conversation.context
+                    context=conversation.context,
                 )
 
                 result_translation = {}
@@ -244,9 +241,7 @@ class ChatService:
                 }
 
                 if translations is not None and translations.context_update is not None:
-                    conversation.update_context(
-                        new_context=translations.context_update.summary
-                    )
+                    conversation.update_context(new_context=translations.context_update.summary)
                 await self._manager.send_to(sender, message)
                 await self._manager.send_to(recipient, message)
             else:
@@ -257,7 +252,7 @@ class ChatService:
                 {
                     "type": "error",
                     "reason": "translation_failed",
-                }
+                },
             )
             return
 
@@ -271,8 +266,7 @@ class ChatService:
     ) -> None:
 
         list_languages: set[str] = self._check_languages_to_translate(
-            sender=sender,
-            room=self._get_key_room_general()
+            sender=sender, room=self._get_key_room_general()
         )
 
         conversation: Conversation | None = self._get_room(room=self._get_key_room_general())
@@ -283,7 +277,7 @@ class ChatService:
                     sender=sender,
                     list_languages=list_languages,
                     text=text,
-                    context=conversation.context
+                    context=conversation.context,
                 )
 
                 translations_dict = getattr(translations_result, "translations", {})
@@ -291,7 +285,7 @@ class ChatService:
                 message: dict[str, object] = {
                     "type": "room_message",
                     "message_id": message_id,
-                    "room": 'general',
+                    "room": "general",
                     "sender_nickname": sender.nickname,
                     "sender_language": sender.language,
                     "original_text": text,
@@ -306,7 +300,7 @@ class ChatService:
                 {
                     "type": "error",
                     "reason": "translation_failed",
-                }
+                },
             )
             return
 
@@ -315,7 +309,7 @@ class ChatService:
             language=sender.language,
             room=room,
         )
-    
+
     def _get_room(self, *, room: str) -> Conversation:
         return self._manager.get_room(room=room)
 
@@ -340,18 +334,15 @@ class ChatService:
             text=text,
             source_language=sender.language,
             target_languages=new_list_languages,
-            context=TranslationContext(
-                context=context.context,
-                messages=context.messages
-            )
+            context=TranslationContext(context=context.context, messages=context.messages),
         )
 
-    async def connect (
-            self,
-            ws: WebSocketLike,
-            *,
-            nickname: str,
-            language: str,
+    async def connect(
+        self,
+        ws: WebSocketLike,
+        *,
+        nickname: str,
+        language: str,
     ) -> ActiveConnection:
         return await self._manager.connect(ws, nickname=nickname, language=language)
 

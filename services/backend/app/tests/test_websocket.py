@@ -34,7 +34,7 @@ def test_websocket_returns_error_for_malformed_payload(client: TestClient) -> No
     token = encode_jwt(nickname="joao", language="Portuguese")
 
     with client.websocket_connect(f"/ws/chat?token={token}") as websocket:
-        websocket.send_json({ "type": "unknown" })
+        websocket.send_json({"type": "unknown"})
         message = websocket.receive_json()
 
     assert message == {
@@ -49,11 +49,7 @@ def test_websocket_routes_room_message_chat_service(client: TestClient) -> None:
     token = encode_jwt(nickname="joao", language="Portuguese")
 
     with client.websocket_connect(f"/ws/chat?token={token}") as websocket:
-        websocket.send_json({
-            "type": "room_message",
-            "room": "general",
-            "text": "Hello"
-        })
+        websocket.send_json({"type": "room_message", "room": "general", "text": "Hello"})
         message = websocket.receive_json()
 
     assert message["type"] == "room_message"
@@ -62,7 +58,7 @@ def test_websocket_routes_room_message_chat_service(client: TestClient) -> None:
     assert message["sender_language"] == "Portuguese"
     assert message["original_text"] == "Hello"
     assert message["translations"] == {}
-    
+
     assert len(message["message_id"].strip())
     assert len(message["sent_at"].strip())
 
@@ -73,11 +69,13 @@ def test_websocket_routes_private_message_recipient_not_found(client: TestClient
     token = encode_jwt(nickname="joao", language="Portuguese")
 
     with client.websocket_connect(f"/ws/chat?token={token}") as websocket:
-        websocket.send_json({
-            "type": "private_message",
-            "recipient_nickname": "maria",
-            "text": "Hello",
-        })
+        websocket.send_json(
+            {
+                "type": "private_message",
+                "recipient_nickname": "maria",
+                "text": "Hello",
+            }
+        )
         message = websocket.receive_json()
 
     assert message == {
@@ -94,11 +92,13 @@ def test_websocket_routes_private_message_both_receive_message(client: TestClien
 
     with client.websocket_connect(f"/ws/chat?token={token_joao}") as websocket_joao:
         with client.websocket_connect(f"/ws/chat?token={token_maria}") as websocket_maria:
-            websocket_joao.send_json({
-                "type": "private_message",
-                "recipient_nickname": "maria",
-                "text": "Hello",
-            })
+            websocket_joao.send_json(
+                {
+                    "type": "private_message",
+                    "recipient_nickname": "maria",
+                    "text": "Hello",
+                }
+            )
             message_joao = websocket_joao.receive_json()
             message_maria = websocket_maria.receive_json()
 
@@ -131,11 +131,13 @@ def test_websocket_routes_private_message_only_both_receive_message(client: Test
     with client.websocket_connect(f"/ws/chat?token={token_joao}") as websocket_joao:
         with client.websocket_connect(f"/ws/chat?token={token_maria}") as websocket_maria:
             with client.websocket_connect(f"/ws/chat?token={token_ana}"):
-                websocket_joao.send_json({
-                    "type": "private_message",
-                    "recipient_nickname": "maria",
-                    "text": "Hello",
-                })
+                websocket_joao.send_json(
+                    {
+                        "type": "private_message",
+                        "recipient_nickname": "maria",
+                        "text": "Hello",
+                    }
+                )
                 message_joao = websocket_joao.receive_json()
                 message_maria = websocket_maria.receive_json()
 

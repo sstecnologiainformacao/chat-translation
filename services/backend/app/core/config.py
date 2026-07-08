@@ -14,6 +14,7 @@ class Settings(BaseSettings):
     openai_model: str = "gpt-5.4-mini"
     is_development: bool
 
+
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
     # BaseSettings loads required fields from environment variables at runtime.
