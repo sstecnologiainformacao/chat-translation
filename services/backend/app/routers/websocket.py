@@ -17,42 +17,35 @@ client_message_adapter: TypeAdapter[ClientMessage] = TypeAdapter(ClientMessage)
 async def chat_websocket(websocket: WebSocket, token: str | None = None) -> None:
     if token is None:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-        return 
-    
+        return
+
     chat = websocket.app.state.chat_service
     try:
         token_payload: TokenPayload = decode_jwt(token)
     except InvalidTokenError:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
-    
+
     await websocket.accept()
     connection = await chat.connect(
-        websocket,
-        nickname=token_payload.nickname,
-        language=token_payload.language
+        websocket, nickname=token_payload.nickname, language=token_payload.language
     )
-    await chat.join_room(
-        connection,
-        room="general"
-    )
-    
+    await chat.join_room(connection, room="general")
+
     try:
         while True:
             payload = await websocket.receive_json()
 
             try:
-                validated: ClientMessage = client_message_adapter.validate_python(
-                    payload
-                )
+                validated: ClientMessage = client_message_adapter.validate_python(payload)
                 now = datetime.now(UTC)
-                date_str = now.strftime('%Y-%m-%dT%H:%M:%SZ')
+                date_str = now.strftime("%Y-%m-%dT%H:%M:%SZ")
                 if validated.type == "room_message":
                     await chat.send_room_message(
                         connection,
                         text=validated.text,
                         message_id=str(uuid.uuid4()),
-                        sent_at=date_str
+                        sent_at=date_str,
                     )
                 if validated.type == "private_message":
                     await chat.send_private_message(
@@ -60,16 +53,11 @@ async def chat_websocket(websocket: WebSocket, token: str | None = None) -> None
                         recipient_nickname=validated.recipient_nickname,
                         text=validated.text,
                         message_id=str(uuid.uuid4()),
-                        sent_at=date_str
+                        sent_at=date_str,
                     )
 
             except ValidationError:
-                await websocket.send_json(
-                    {
-                        "type": "error",
-                        "reason": "malformed_payload"
-                    }
-                )
+                await websocket.send_json({"type": "error", "reason": "malformed_payload"})
 
     except WebSocketDisconnect:
         await chat.disconnect(connection)

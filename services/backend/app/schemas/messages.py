@@ -62,8 +62,5 @@ class ServerErrorMessage(BaseModel):
 
 
 ServerMessage = (
-    ServerRoomMessage
-    | ServerPrivateMessage
-    | ServerSystemEventMessage
-    | ServerErrorMessage
+    ServerRoomMessage | ServerPrivateMessage | ServerSystemEventMessage | ServerErrorMessage
 )

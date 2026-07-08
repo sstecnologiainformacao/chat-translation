@@ -9,5 +9,5 @@ def create_translation_provider() -> TranslationProvider:
 
     if settings.is_development:
         return FakeTranslator()
-    
+
     return OpenAITranslator(api_key=settings.openai_api_key, model=settings.openai_model)
