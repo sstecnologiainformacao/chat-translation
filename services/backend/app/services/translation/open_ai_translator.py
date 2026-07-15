@@ -1,3 +1,5 @@
+from pydantic import BaseModel, ConfigDict, ValidationError
+
 from app.services.translation.base import (
     Message,
     TranslationClient,
@@ -6,6 +8,22 @@ from app.services.translation.base import (
     TranslationError,
     TranslationResult,
 )
+
+
+class OpenAIContextUpdateResponse(BaseModel):
+    model_config = ConfigDict(strict=True)
+
+    summary: str
+    tone: str
+    entities: list[str]
+    glossary: dict[str, str]
+
+
+class OpenAITranslationResponse(BaseModel):
+    model_config = ConfigDict(strict=True)
+
+    translations: dict[str, str]
+    context_update: OpenAIContextUpdateResponse
 
 
 class OpenAITranslator:
@@ -60,36 +78,21 @@ class OpenAITranslator:
         }
 
     def _parse_open_ai_response(self, *, response: dict[str, object]) -> TranslationResult:
-        translations_raw = response.get("translations")
-        context_update_raw = response.get("context_update")
+        try:
+            parsed_response = OpenAITranslationResponse.model_validate(response)
+        except ValidationError as error:
+            raise TranslationError() from error
 
-        if translations_raw is None or context_update_raw is None:
-            raise TranslationError()
+        context_response = TranslationContextUpdate(
+            summary=parsed_response.context_update.summary,
+            tone=parsed_response.context_update.tone,
+            entities=parsed_response.context_update.entities,
+            glossary=parsed_response.context_update.glossary,
+        )
 
-        if isinstance(translations_raw, dict) and isinstance(context_update_raw, dict):
-            summary_raw = context_update_raw.get("summary")
-            tone_raw = context_update_raw.get("tone")
-            entities_raw = context_update_raw.get("entities")
-            glossary_raw = context_update_raw.get("glossary")
-
-            if not isinstance(summary_raw, str):
-                raise TranslationError()
-
-            if not isinstance(tone_raw, str):
-                raise TranslationError()
-
-            if not isinstance(entities_raw, list):
-                raise TranslationError()
-
-            if not isinstance(glossary_raw, dict):
-                raise TranslationError()
-
-            new_context: TranslationContextUpdate = TranslationContextUpdate(
-                summary=summary_raw, tone=tone_raw, entities=entities_raw, glossary=glossary_raw
-            )
-            return TranslationResult(translations=translations_raw, context_update=new_context)
-
-        raise TranslationError()
+        return TranslationResult(
+            translations=parsed_response.translations, context_update=context_response
+        )
 
     def get_list_messages_as_text(self, *, messages: list[Message]) -> str:
         list_messages: list[str] = list()

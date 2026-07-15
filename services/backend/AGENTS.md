@@ -15,8 +15,15 @@ Rules loaded when Codex touches `services/backend/`. Universal rules live in the
 - **Repository pattern:** every storage access goes through a `Protocol`-typed dependency. MVP ships `InMemoryMessageRepository`; Cycle 2 adds `SqlAlchemyMessageRepository`.
 - **Provider pattern:** external services (translation) are abstracted via `Protocol`. MVP ships `OpenAITranslator`; provider details stay behind the translation interface.
 - **Settings:** `Settings(BaseSettings)` from `pydantic-settings`. Reads only process env vars; never resolves `.env` files in Python (avoids CWD ambiguity).
+- **Pydantic at boundaries:** use Pydantic v2 for data that crosses application boundaries, including HTTP bodies, WebSocket payloads, settings, external API requests/responses, and JSON-shaped provider contracts. Keep domain/service logic in plain Python unless a Pydantic model removes real validation risk.
 - **JWT:** HS256 via `pyjwt[crypto]`. Token validated only at the WebSocket handshake (not per message).
 - **Async by default:** all routers and service methods are `async def`. Avoid sync I/O in the request path.
+
+## Feature workflow
+
+- Every new backend feature must explicitly consider whether Pydantic belongs at its input, output, configuration, or external-provider boundary.
+- Prefer finishing the current feature slice before broad Pydantic refactors. Add Pydantic models inside the active slice when they protect a real runtime boundary, then refactor other areas incrementally in separate small changes.
+- Do not replace all internal typed objects with Pydantic by default. Use it where runtime validation, serialization, or external data parsing is needed.
 
 ## Testing conventions
 

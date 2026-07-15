@@ -23,9 +23,9 @@ Do not load broad unrelated documentation unless the current step requires it.
 - This is a local-only learning project. Do not suggest cloud services.
 - All repository artifacts must be written in English.
 - Conversation with the user may be in Portuguese.
-- Codex must not edit Python files directly while following the active learning plan.
-- The learner writes Python changes. Codex reviews, runs checks, explains failures, and gives small next objectives.
-- Codex may edit Markdown and shell helper files when asked.
+- Codex may edit project files when explicitly asked, but learning-oriented backend work should still favor small objectives, review, checks, and explanation before broad implementation.
+- New backend features must consider Pydantic at application boundaries: HTTP payloads, WebSocket payloads, settings, external API requests/responses, and JSON-shaped provider contracts.
+- Pydantic should be adopted incrementally. Finish the current feature slice first, add Pydantic where it protects a real boundary, and avoid broad refactors mixed into unrelated feature work.
 
 ## Repository State
 
