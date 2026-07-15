@@ -11,6 +11,7 @@ from app.services.translation.base import (
 from app.services.translation.factory import create_translation_provider
 from app.services.translation.fake_client import FakeClient
 from app.services.translation.fake_translator import FakeTranslator
+from app.services.translation.open_ai_client import OpenAIClient
 from app.services.translation.open_ai_translator import OpenAITranslator
 
 
@@ -59,25 +60,9 @@ async def test_return_open_ai_translator_if_not_development(
     assert isinstance(translator, OpenAITranslator)
     assert translator._api_key == "sk-fake-test"
     assert translator._model == "gpt-5.4-fake"
-
-
-async def test_raise_translation_error_translator_not_implemented(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    monkeypatch.setenv("OPENAI_API_KEY", "sk-fake-test")
-    monkeypatch.setenv("OPENAI_MODEL", "gpt-5.4-fake")
-    monkeypatch.setenv("IS_DEVELOPMENT", "False")
-    get_settings.cache_clear()
-
-    translator: TranslationProvider = create_translation_provider()
-
-    with pytest.raises(TranslationError):
-        await translator.translate(
-            text="Test",
-            source_language="Portuguese",
-            target_languages=set(["English"]),
-            context=TranslationContext(context="The context", messages=[]),
-        )
+    assert translator._client is not None
+    assert isinstance(translator._client, OpenAIClient)
+    assert translator._client._api_key == "sk-fake-test"
 
 
 async def test_build_parameters_to_send_open_ai() -> None:
@@ -148,10 +133,12 @@ async def test_parse_open_ai_response() -> None:
 
 
 async def test_call_fake_api() -> None:
+    fake_client = FakeClient()
+
     translator: OpenAITranslator = OpenAITranslator(
         api_key="the-key",
         model="the-model",
-        client=FakeClient(),
+        client=fake_client,
     )
 
     result: TranslationResult = await translator.translate(
@@ -183,3 +170,172 @@ async def test_call_fake_api() -> None:
     assert len(result.context_update.entities) == 0
     assert result.context_update.glossary == context_update["glossary"]
     assert result.context_update.summary == context_update["summary"]
+
+    assert fake_client.received_api_parameters.get("model") == "the-model"
+    assert fake_client.received_api_parameters.get("input") == "a text"
+
+
+@pytest.mark.parametrize(
+    "response",
+    [
+        {
+            "translations": {
+                "English": 123,
+            },
+            "context_update": {
+                "summary": "It's a summary",
+                "tone": "This is tone",
+                "entities": [],
+                "glossary": {},
+            },
+        },
+        {
+            "translations": {
+                "English": "123",
+                123: "Invalid key",
+            },
+            "context_update": {
+                "summary": "It's a summary",
+                "tone": "This is tone",
+                "entities": [],
+                "glossary": {},
+            },
+        },
+        {
+            "translations": {
+                "English": "123",
+            },
+            "context_update": {
+                "summary": "It's a summary",
+                "tone": "This is tone",
+                "entities": [123],
+                "glossary": {},
+            },
+        },
+        {
+            "translations": {
+                "English": "123",
+            },
+            "context_update": {
+                "summary": "It's a summary",
+                "tone": "This is tone",
+                "entities": [],
+                "glossary": {
+                    "hello": 123,
+                },
+            },
+        },
+        {
+            "translations": {
+                "English": "123",
+            },
+            "context_update": None,
+        },
+    ],
+)
+async def test_parse_open_ai_response_raises_error_for_invalid_response(
+    response: dict[str, object],
+) -> None:
+    translator = OpenAITranslator(api_key="the-key", model="the-model")
+
+    with pytest.raises(TranslationError):
+        translator._parse_open_ai_response(response=response)
+
+
+async def test_open_ai_client_initializes_sdk_with_api_key() -> None:
+    open_ai_client = OpenAIClient(api_key="the-key")
+
+    assert open_ai_client._async_open_ai is not None
+
+
+class Responses:
+    def __init__(self, *, fake_response: dict[str, object] | None = None) -> None:
+        self.parameters: dict[str, object] = {}
+        self._fake_create_response = fake_response
+
+    async def create(self, **parameters: object) -> dict[str, object]:
+        self.parameters = parameters
+        if self._fake_create_response is None:
+            return {}
+        return self._fake_create_response
+
+
+class FakeAsyncOpenAI:
+    def __init__(self, *, fake_response: dict[str, object] | None = None) -> None:
+        self.responses = Responses(fake_response=fake_response)
+
+
+class ResponsesError:
+    def __init__(self, *, fake_response: dict[str, object] | None = None) -> None:
+        self.parameters: dict[str, object] = {}
+        self._fake_create_response = fake_response
+
+    async def create(self, **parameters: object) -> dict[str, object]:
+        raise Exception("Something wrong happened")
+
+
+class FakeAsyncOpenAIWithResponseError:
+    def __init__(self, *, fake_response: dict[str, object] | None = None) -> None:
+        self.responses = ResponsesError(fake_response=fake_response)
+
+
+async def test_open_ai_client_accepts_injected_sdk() -> None:
+    open_ai_client = OpenAIClient(async_open_ai=FakeAsyncOpenAI())
+
+    assert open_ai_client._async_open_ai is not None
+
+
+async def test_open_ai_client_sends_parameters_to_sdk() -> None:
+    fake = FakeAsyncOpenAI()
+
+    parameters: dict[str, object] = {
+        "param1": "The param 1",
+        "param2": "The param 2",
+    }
+
+    open_ai_client = OpenAIClient(async_open_ai=fake)
+    await open_ai_client.translate(api_parameters=parameters)
+
+    assert fake.responses.parameters is not None
+    assert fake.responses.parameters.get("param1") == "The param 1"
+    assert fake.responses.parameters.get("param2") == "The param 2"
+
+
+async def test_open_ai_client_returns_sdk_response() -> None:
+    expected_result = {
+        "translations": {
+            "English": "This is a message",
+            "Portuguese": "Essa é uma mensagem",
+        },
+        "context_update": {
+            "summary": "It's a summary",
+            "tone": "This the tone",
+            "entities": [],
+            "glossary": {},
+        },
+    }
+    fake = FakeAsyncOpenAI(fake_response=expected_result)
+
+    parameters: dict[str, object] = {
+        "param1": "The param 1",
+        "param2": "The param 2",
+    }
+
+    open_ai_client = OpenAIClient(async_open_ai=fake)
+    result = await open_ai_client.translate(api_parameters=parameters)
+
+    assert result == expected_result
+
+
+async def test_open_ai_client_raises_translation_error_when_sdk_fails() -> None:
+    fake = FakeAsyncOpenAIWithResponseError()
+
+    parameters: dict[str, object] = {
+        "param1": "The param 1",
+        "param2": "The param 2",
+    }
+
+    open_ai_client = OpenAIClient(async_open_ai=fake)
+
+    with pytest.raises(TranslationError):
+        await open_ai_client.translate(api_parameters=parameters)
