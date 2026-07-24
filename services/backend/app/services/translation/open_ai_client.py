@@ -3,7 +3,7 @@ from typing import Protocol, cast
 from openai import AsyncOpenAI
 
 from app.services.translation.base import TranslationClient, TranslationError
-from app.services.translation.open_ai_translator import OpenAITranslationResponse
+from app.services.translation.open_ai_models import OpenAITranslationResponse
 
 
 class ParsedOutput(Protocol):

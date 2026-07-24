@@ -12,7 +12,8 @@ from app.services.translation.factory import create_translation_provider
 from app.services.translation.fake_client import FakeClient
 from app.services.translation.fake_translator import FakeTranslator
 from app.services.translation.open_ai_client import OpenAIClient
-from app.services.translation.open_ai_translator import OpenAITranslationResponse, OpenAITranslator
+from app.services.translation.open_ai_models import OpenAITranslationResponse
+from app.services.translation.open_ai_translator import OpenAITranslator
 
 
 async def test_translation_returns_fake_translator() -> None:

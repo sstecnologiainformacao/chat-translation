@@ -1,4 +1,4 @@
-from pydantic import BaseModel, ConfigDict, ValidationError
+from pydantic import ValidationError
 
 from app.services.translation.base import (
     Message,
@@ -8,22 +8,7 @@ from app.services.translation.base import (
     TranslationError,
     TranslationResult,
 )
-
-
-class OpenAIContextUpdateResponse(BaseModel):
-    model_config = ConfigDict(strict=True)
-
-    summary: str
-    tone: str
-    entities: list[str]
-    glossary: dict[str, str]
-
-
-class OpenAITranslationResponse(BaseModel):
-    model_config = ConfigDict(strict=True)
-
-    translations: dict[str, str]
-    context_update: OpenAIContextUpdateResponse
+from app.services.translation.open_ai_models import OpenAITranslationResponse
 
 
 class OpenAITranslator:
