@@ -12,7 +12,7 @@ from app.services.translation.factory import create_translation_provider
 from app.services.translation.fake_client import FakeClient
 from app.services.translation.fake_translator import FakeTranslator
 from app.services.translation.open_ai_client import OpenAIClient
-from app.services.translation.open_ai_translator import OpenAITranslator
+from app.services.translation.open_ai_translator import OpenAITranslationResponse, OpenAITranslator
 
 
 async def test_translation_returns_fake_translator() -> None:
@@ -248,16 +248,32 @@ async def test_open_ai_client_initializes_sdk_with_api_key() -> None:
     assert open_ai_client._async_open_ai is not None
 
 
+class FakeOutputParsed:
+    def __init__(self, *, fake_response: dict[str, object] | None = None) -> None:
+        self.parameters: dict[str, object] = {}
+        self._fake_response = fake_response
+
+    def model_dump(self) -> dict[str, object]:
+        if self._fake_response is None:
+            return {}
+        return self._fake_response
+
+
+class FakeParsedResponse:
+    def __init__(self, *, fake_response: dict[str, object] | None = None) -> None:
+        self.output_parsed = FakeOutputParsed(fake_response=fake_response)
+
+
 class Responses:
     def __init__(self, *, fake_response: dict[str, object] | None = None) -> None:
         self.parameters: dict[str, object] = {}
-        self._fake_create_response = fake_response
+        self._fake_response = fake_response
 
-    async def create(self, **parameters: object) -> dict[str, object]:
+    async def parse(self, **parameters: object) -> FakeParsedResponse:
         self.parameters = parameters
-        if self._fake_create_response is None:
-            return {}
-        return self._fake_create_response
+        if self._fake_response is None:
+            return FakeParsedResponse()
+        return FakeParsedResponse(fake_response=self._fake_response)
 
 
 class FakeAsyncOpenAI:
@@ -266,17 +282,13 @@ class FakeAsyncOpenAI:
 
 
 class ResponsesError:
-    def __init__(self, *, fake_response: dict[str, object] | None = None) -> None:
-        self.parameters: dict[str, object] = {}
-        self._fake_create_response = fake_response
-
-    async def create(self, **parameters: object) -> dict[str, object]:
+    async def parse(self, **parameters: object) -> FakeParsedResponse:
         raise Exception("Something wrong happened")
 
 
 class FakeAsyncOpenAIWithResponseError:
-    def __init__(self, *, fake_response: dict[str, object] | None = None) -> None:
-        self.responses = ResponsesError(fake_response=fake_response)
+    def __init__(self) -> None:
+        self.responses = ResponsesError()
 
 
 async def test_open_ai_client_accepts_injected_sdk() -> None:
@@ -299,9 +311,10 @@ async def test_open_ai_client_sends_parameters_to_sdk() -> None:
     assert fake.responses.parameters is not None
     assert fake.responses.parameters.get("param1") == "The param 1"
     assert fake.responses.parameters.get("param2") == "The param 2"
+    assert fake.responses.parameters.get("text_format") is OpenAITranslationResponse
 
 
-async def test_open_ai_client_returns_sdk_response() -> None:
+async def test_open_ai_client_returns_parsed_response_dump() -> None:
     expected_result = {
         "translations": {
             "English": "This is a message",
