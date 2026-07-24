@@ -83,6 +83,8 @@ async def test_build_parameters_to_send_open_ai() -> None:
         "reasoning": {"effort": "low"},
         "instructions": (
             "You're a great translator. "
+            "Return translations for each target language and update the translation context"
+            " as context_update with summary, tone, entities, and glossary. "
             'You need to translate the text present on the attribute "input" '
             "and that was wrote in Portuguese to English, Spanish. "
             'Translate the text using this context "The context", '
@@ -94,6 +96,29 @@ async def test_build_parameters_to_send_open_ai() -> None:
     assert result["model"] == expected_result["model"]
     assert result["instructions"] == expected_result["instructions"]
     assert result["input"] == expected_result["input"]
+
+
+async def test_build_api_parameters_has_correct_params() -> None:
+    translator: OpenAITranslator = OpenAITranslator(api_key="the-key", model="the-model")
+
+    result: dict[str, object] = translator._build_api_parameters(
+        text="Test",
+        source_language="Portuguese",
+        target_languages=set(["English", "Spanish"]),
+        context=TranslationContext(
+            context="The context", messages=[Message(message="a message", nickname="JL")]
+        ),
+    )
+
+    result_instructions = result.get("instructions")
+
+    assert isinstance(result_instructions, str)
+    assert "translations" in result_instructions
+    assert "context_update" in result_instructions
+    assert "summary" in result_instructions
+    assert "tone" in result_instructions
+    assert "entities" in result_instructions
+    assert "glossary" in result_instructions
 
 
 async def test_parse_open_ai_response() -> None:

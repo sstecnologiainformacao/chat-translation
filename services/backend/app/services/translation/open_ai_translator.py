@@ -52,6 +52,8 @@ class OpenAITranslator:
             "reasoning": {"effort": "low"},
             "instructions": (
                 "You're a great translator. "
+                "Return translations for each target language and update the translation context"
+                " as context_update with summary, tone, entities, and glossary. "
                 'You need to translate the text present on the attribute "input" '
                 "and that was wrote in "
                 f"{source_language} to {', '.join(sorted(target_languages))}. "
