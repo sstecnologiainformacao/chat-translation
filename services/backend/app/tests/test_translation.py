@@ -125,15 +125,15 @@ async def test_parse_open_ai_response() -> None:
     translator: OpenAITranslator = OpenAITranslator(api_key="the-key", model="the-model")
 
     response: dict[str, object] = {
-        "translations": {
-            "English": "This is a message",
-            "Portuguese": "Essa é uma mensagem",
-        },
+        "translations": [
+            {"language": "English", "text": "This is a message"},
+            {"language": "Portuguese", "text": "Essa é uma mensagem"},
+        ],
         "context_update": {
             "summary": "It's a summary",
             "tone": "This the tone",
             "entities": [],
-            "glossary": {},
+            "glossary": [],
         },
     }
 
@@ -205,56 +205,56 @@ async def test_call_fake_api() -> None:
     "response",
     [
         {
-            "translations": {
-                "English": 123,
-            },
+            "translations": [
+                {"language": "English", "text": 123},
+            ],
             "context_update": {
                 "summary": "It's a summary",
                 "tone": "This is tone",
                 "entities": [],
-                "glossary": {},
+                "glossary": [],
             },
         },
         {
-            "translations": {
-                "English": "123",
-                123: "Invalid key",
-            },
+            "translations": [
+                {"language": "English", "text": "123"},
+                {"language": 123, "text": "Invalid key"},
+            ],
             "context_update": {
                 "summary": "It's a summary",
                 "tone": "This is tone",
                 "entities": [],
-                "glossary": {},
+                "glossary": [],
             },
         },
         {
-            "translations": {
-                "English": "123",
-            },
+            "translations": [
+                {"language": "English", "text": "123"},
+            ],
             "context_update": {
                 "summary": "It's a summary",
                 "tone": "This is tone",
                 "entities": [123],
-                "glossary": {},
+                "glossary": [],
             },
         },
         {
-            "translations": {
-                "English": "123",
-            },
+            "translations": [
+                {"language": "English", "text": "123"},
+            ],
             "context_update": {
                 "summary": "It's a summary",
                 "tone": "This is tone",
                 "entities": [],
-                "glossary": {
-                    "hello": 123,
-                },
+                "glossary": [
+                    {"term": "hello", "translation": 123},
+                ],
             },
         },
         {
-            "translations": {
-                "English": "123",
-            },
+            "translations": [
+                {"language": "English", "text": "123"},
+            ],
             "context_update": None,
         },
     ],
@@ -341,16 +341,16 @@ async def test_open_ai_client_sends_parameters_to_sdk() -> None:
 
 
 async def test_open_ai_client_returns_parsed_response_dump() -> None:
-    expected_result = {
-        "translations": {
-            "English": "This is a message",
-            "Portuguese": "Essa é uma mensagem",
-        },
+    expected_result: dict[str, object] = {
+        "translations": [
+            {"language": "English", "text": "This is a message"},
+            {"language": "Portuguese", "text": "Essa é uma mensagem"},
+        ],
         "context_update": {
             "summary": "It's a summary",
             "tone": "This the tone",
             "entities": [],
-            "glossary": {},
+            "glossary": [],
         },
     }
     fake = FakeAsyncOpenAI(fake_response=expected_result)
