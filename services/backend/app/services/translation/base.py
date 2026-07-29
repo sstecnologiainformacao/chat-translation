@@ -38,7 +38,10 @@ class TranslationContextUpdate:
 
 class TranslationResult:
     def __init__(
-        self, *, translations: dict[str, str], context_update: TranslationContextUpdate | None
+        self,
+        *,
+        translations: dict[str, str],
+        context_update: TranslationContextUpdate | None,
     ):
         self.translations = translations
         self.context_update = context_update

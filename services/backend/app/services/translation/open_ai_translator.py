@@ -70,15 +70,24 @@ class OpenAITranslator:
         except ValidationError as error:
             raise TranslationError() from error
 
+        glossary_item = {}
+        for glossary in parsed_response.context_update.glossary:
+            glossary_item[glossary.term] = glossary.translation
+
         context_response = TranslationContextUpdate(
             summary=parsed_response.context_update.summary,
             tone=parsed_response.context_update.tone,
             entities=parsed_response.context_update.entities,
-            glossary=parsed_response.context_update.glossary,
+            glossary=glossary_item,
         )
 
+        translation_items = {}
+        for item in parsed_response.translations:
+            translation_items[item.language] = item.text
+
         return TranslationResult(
-            translations=parsed_response.translations, context_update=context_response
+            translations=translation_items,
+            context_update=context_response,
         )
 
     def get_list_messages_as_text(self, *, messages: list[Message]) -> str:
