@@ -12,6 +12,7 @@ This file is the entry point for Codex working on `chat-translation`. Keep it sm
 2. **All artifacts in English.** Every Markdown, code file, comment, log message, identifier, and commit message is written in English regardless of the conversation language. Codified in `../chat-translation-docs/decisions/0006-english-only-artifacts.md`.
 3. **Keep edits scoped and direct.** Codex may edit project files when asked, including Python files, but changes should follow the existing structure and be explained clearly.
 4. **`AGENTS.md` is split by area.** This root file holds only universal rules; subdirectory rules live in nested `AGENTS.md` files. Codified in `../chat-translation-docs/decisions/0007-agent-instructions.md`.
+5. **English practice support.** The user may write prompts in English to practice. Codex should keep responding in Portuguese and include a brief English improvement note in every response, while repository artifacts remain in English.
 
 ## Source of truth
 

@@ -1,12 +1,12 @@
-# Codex Handoff: Current Backend Translation Context Work
+# Codex Handoff: Current Backend State
 
-Date: 2026-06-24
+Date: 2026-07-29
 
 ## Purpose
 
-This document lets a future Codex session on another Mac resume the current work without relying on chat history.
+This document lets a future Codex session resume the backend learning work without relying on chat history.
 
-The active user request before this handoff was to validate which suggested items were implemented around `Conversation`, `Message`, and translation context handling.
+The active request before this update was to re-evaluate documentation after the OpenAI structured response work was merged into `main`.
 
 ## Required Reading Order
 
@@ -22,7 +22,8 @@ Do not load broad unrelated documentation unless the current step requires it.
 
 - This is a local-only learning project. Do not suggest cloud services.
 - All repository artifacts must be written in English.
-- Conversation with the user may be in Portuguese.
+- The learner may write prompts in English to practice.
+- Codex should keep responding in Portuguese and include a brief English improvement note in every response.
 - Codex may edit project files when explicitly asked, but learning-oriented backend work should still favor small objectives, review, checks, and explanation before broad implementation.
 - New backend features must consider Pydantic at application boundaries: HTTP payloads, WebSocket payloads, settings, external API requests/responses, and JSON-shaped provider contracts.
 - Pydantic should be adopted incrementally. Finish the current feature slice first, add Pydantic where it protects a real boundary, and avoid broad refactors mixed into unrelated feature work.
@@ -31,28 +32,17 @@ Do not load broad unrelated documentation unless the current step requires it.
 
 - Repository: `https://github.com/sstecnologiainformacao/chat-translation.git`
 - Working tree path on the original Mac: `/Users/joaolucasdossantos/workspace-estudo/chat-translation`
-- Active branch: `wip-translation-context-openai`
-- Last commit at handoff time: `15b292b feat: add structured translation result flow`
-- The branch tracked `origin/wip-translation-context-openai`
-
-Uncommitted files before this handoff documentation was created:
-
-- `AGENTS.md`
-- `services/backend/app/services/chat.py`
-- `services/backend/app/services/translation/base.py`
-- `services/backend/app/tests/test_chat_service.py`
-
-Additional files created by this handoff task:
-
-- `docs/handoff/codex-current-state.md`
-- `docs/setup/mac-environment.md`
-- `scripts/check-backend.sh`
-- `scripts/check-local-environment.sh`
-- `scripts/setup-mac-environment.sh`
+- Active branch: `main`
+- The previous OpenAI structured response branch was merged into `main`.
+- The backend quality baseline is currently green:
+  - `uv run pytest -q`: 66 tests passing
+  - `uv run mypy app scripts`: passing
+  - `uv run ruff check app scripts`: passing
+  - `uv run ruff format --check app scripts`: passing
 
 ## Current Backend Focus
 
-The current phase is Phase 9 from the active learning plan: translation abstraction and conversation context.
+The current phase is the tail of Phase 9 from the active learning plan: translation abstraction and conversation context. Phase 10, the OpenAI translator, is implemented enough for local verification.
 
 The confirmed design is:
 
@@ -62,105 +52,59 @@ The confirmed design is:
 - Each conversation keeps compact translation context.
 - The translation provider receives one source message, all target languages, and the current compact context.
 - The translation provider returns both `translations` and `context_update`.
-- Conversation context is updated only after translation succeeds.
+- Conversation context should be updated only after translation succeeds.
 - If translation fails, the message is not delivered and context is not updated.
 
 ## What Was Implemented So Far
 
-Implemented or mostly implemented:
+Implemented:
 
-- A `Conversation` class was introduced in `services/backend/app/services/chat.py`.
-- `ConnectionManager._rooms` now maps room names to `Conversation` objects instead of lists.
-- `Conversation` has `key`, `connections`, `messages`, and `context` fields.
-- `TranslationResult` has `translations` and `context_update`.
-- The direct circular import from translation code back into chat code was removed.
-- The public conversation key was changed toward the desired shape by using `room:{key}` inside `Conversation`.
+- Auth, JWT, WebSocket routing, message schemas, public room messaging, and private messaging.
+- Translation provider protocol and fake translator.
+- Translation context and translation result shapes.
+- Provider factory that returns `FakeTranslator` when `IS_DEVELOPMENT=true` and `OpenAITranslator` otherwise.
+- `OpenAIClient` wrapper around the official OpenAI SDK.
+- `OpenAITranslator` using Responses API structured parsing.
+- Pydantic boundary models for OpenAI responses.
+- Conversion from OpenAI list-shaped structured output into internal dictionary-shaped translation results.
+- Manual real-API verification script at `services/backend/scripts/verify_openai_translation.py`.
 
 Partially implemented:
 
-- Public context key behavior exists in code, but the test does not assert it yet.
-- The public context key test exists as `test_create_public_chat_context_key`, but it only exercises a flow and has no assertion.
-- `send_room_message` starts to fetch a conversation before translation, but it passes only a string context and then rebuilds a new `TranslationContext` with empty messages.
-- `send_private_message` starts to fetch a conversation before translation, but it passes a `TranslationContext` where `_translate_text` currently expects a `str`.
+- Conversation context is passed into translation calls.
+- Private message flow applies the returned summary to its conversation context.
+- Room message flow sends translations, but still needs explicit context update and recent-message tracking checks.
 
 Not implemented yet:
 
-- Deterministic private context key resolver.
-- Tests for `room:general`, `private:joao:maria`, and reversed private participant ordering.
-- Passing the real `TranslationContext` object into the provider without recreating it incorrectly.
-- Applying `context_update` back into the relevant conversation after successful translation.
-- Updating recent message context after successful translation.
+- In-memory message repository and history retrieval.
+- Complete recent-message accumulation in translation context for every successful message path.
+- Tests proving room context updates only after successful translation.
+- Tests proving failed translations do not mutate context.
 
 ## Current Known Failures
 
-Focused test:
+None at the quality baseline level.
+
+Use this command set from `services/backend/`:
 
 ```bash
-cd services/backend
-uv run pytest app/tests/test_chat_service.py::test_create_public_chat_context_key -q
+uv run pytest -q
+uv run mypy app scripts
+uv run ruff check app scripts
+uv run ruff format --check app scripts
 ```
-
-Current failure:
-
-```text
-TypeError: TranslationContext.__init__() missing 2 required keyword-only arguments: 'context' and 'messages'
-```
-
-Root cause:
-
-- `Conversation.__init__` calls `TranslationContext()` without `context` and `messages`.
-
-Current `mypy` status:
-
-```bash
-cd services/backend
-uv run mypy app/services/chat.py app/services/translation/base.py app/tests/test_chat_service.py
-```
-
-At handoff time this reported 16 errors in `services/backend/app/services/chat.py`.
-
-Most relevant errors:
-
-- `TranslationContext()` is missing required arguments.
-- Several new `Conversation` methods are missing return type annotations.
-- `list.remove(0)` is wrong for removing the first message from a list of `Message`.
-- `disconnect` still treats `Conversation` as if it were a list.
-- `_get_room` is declared keyword-only but called positionally.
-- `_get_room` can return `None` but is typed as returning `Conversation`.
-- `_translate_text` expects `str`, while one caller passes `TranslationContext`.
-
-Current `ruff` status:
-
-```bash
-cd services/backend
-uv run ruff check app/services/chat.py app/services/translation/base.py app/tests/test_chat_service.py
-```
-
-At handoff time this reported:
-
-- unsorted import block
-- bare `except`
-- line longer than 100 characters
-- unnecessary semicolon
-
-Current whitespace check:
-
-```bash
-git diff --check
-```
-
-At handoff time this reported trailing whitespace in `services/backend/app/services/chat.py`.
 
 ## Next Recommended Learning Step
 
-Do not jump to the OpenAI provider yet.
+Do not start a broad refactor yet.
 
 Next objective for the learner:
 
-1. Make `Conversation` initialize its empty `TranslationContext` correctly.
-2. Make room lookup safe and consistently typed.
-3. Add a real assertion for public context key behavior.
-4. Add a private context key resolver only after the public key test is meaningful.
+1. Add focused tests around room conversation context updates.
+2. Prove context is updated only after a successful room translation.
+3. Prove failed translation does not mutate room context or deliver the message.
+4. Then decide whether to clean up `Conversation.add_message` and recent message tracking before moving to in-memory history.
 
 Suggested review target:
 
@@ -172,10 +116,9 @@ Suggested check after the learner changes Python:
 
 ```bash
 cd services/backend
-uv run pytest app/tests/test_chat_service.py::test_create_public_chat_context_key -q
+uv run pytest app/tests/test_chat_service.py -q
 uv run mypy app/services/chat.py app/services/translation/base.py app/tests/test_chat_service.py
 uv run ruff check app/services/chat.py app/services/translation/base.py app/tests/test_chat_service.py
-git diff --check
 ```
 
 ## Guidance For The Next Codex Session
@@ -183,6 +126,7 @@ git diff --check
 Default response style:
 
 - Respond in Portuguese.
+- Include a concise English improvement note in every response, either correcting the learner's wording or offering one practical tip.
 - Keep all repository artifacts in English.
 - Give findings first when reviewing code.
 - Do not patch Python files unless the user explicitly asks to override the learning workflow.
@@ -191,7 +135,7 @@ Default response style:
 
 Useful current interpretation:
 
-- The current direction is good, but the implementation is not ready.
+- The current direction is good and the quality baseline is green.
 - The design should keep translation context independent enough that the provider does not need to import chat service internals.
 - If a `Message` class remains in `translation/base.py`, consider whether it should be named specifically as a translation context message later.
-- Keep the next step small. The current failure is enough work for one checkpoint.
+- Keep the next step small: context update behavior is enough work for one checkpoint.
