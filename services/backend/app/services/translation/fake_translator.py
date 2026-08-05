@@ -6,6 +6,9 @@ from app.services.translation.base import (
 
 
 class FakeTranslator:
+    def __init__(self, *, context_update_summary: str = ""):
+        self._update_context = context_update_summary
+
     async def translate(
         self,
         *,
@@ -25,7 +28,7 @@ class FakeTranslator:
         result = TranslationResult(
             translations=translations,
             context_update=TranslationContextUpdate(
-                summary="",
+                summary=self._update_context,
                 tone="",
                 entities=[],
                 glossary={},
