@@ -41,10 +41,7 @@ class Conversation:
         self.messages.append(message)
 
         if len(self.context.messages) == 5:
-            try:
-                self.context.messages.pop(0)
-            except Exception:
-                ...
+            self.context.messages.pop(0)
 
         self.context.messages.append(message)
 
@@ -280,6 +277,14 @@ class ChatService:
                     context=conversation.context,
                 )
 
+                if (
+                    translations_result is not None
+                    and translations_result.context_update is not None
+                ):
+                    conversation.update_context(
+                        new_context=translations_result.context_update.summary
+                    )
+
                 translations_dict = getattr(translations_result, "translations", {})
 
                 message: dict[str, object] = {
@@ -293,6 +298,8 @@ class ChatService:
                     "sent_at": sent_at,
                 }
 
+                original_message = Message(message=text, nickname=sender.nickname)
+                conversation.add_message(message=original_message)
                 await self._manager.broadcast_to_room(self._get_key_room_general(), message)
         except TranslationError:
             await self._manager.send_to(

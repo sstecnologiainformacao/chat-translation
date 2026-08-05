@@ -552,3 +552,136 @@ async def test_translate_public_message_but_error() -> None:
 
     assert ws_joao.sent == [expected_message]
     assert ws_maria.sent == []
+
+
+async def test_send_room_message_updates_room_context_after_successful_translation() -> None:
+    manager = ConnectionManager(max_connections=10)
+    service = ChatService(
+        manager=manager, translator=FakeTranslator(context_update_summary="It's a summary")
+    )
+
+    ws_joao = DummyWebSocket()
+    ws_maria = DummyWebSocket()
+
+    joao = await service.connect(ws_joao, nickname="joao", language="Portuguese")
+    maria = await service.connect(ws_maria, nickname="maria", language="English")
+
+    await service.join_room(joao, room="general")
+    await service.join_room(maria, room="general")
+
+    await service.send_room_message(
+        joao, text="Hello", message_id="msg-1", sent_at="2026-06-01T12:00:00Z"
+    )
+
+    conversation = manager.get_room(room="room:general")
+
+    assert conversation.context.context == "It's a summary"
+
+
+async def test_send_room_message_does_not_update_room_context_after_failed_translation() -> None:
+    manager = ConnectionManager(max_connections=10)
+    conversation = manager.get_room(room="room:general")
+    conversation.context.context = "A text to be checked later"
+
+    service = ChatService(manager=manager, translator=FakeTranslatorWithError())
+
+    ws_joao = DummyWebSocket()
+    ws_maria = DummyWebSocket()
+
+    joao = await service.connect(ws_joao, nickname="joao", language="Portuguese")
+    maria = await service.connect(ws_maria, nickname="maria", language="English")
+
+    await service.join_room(joao, room="general")
+    await service.join_room(maria, room="general")
+
+    await service.send_room_message(
+        joao, text="Hello", message_id="msg-1", sent_at="2026-06-01T12:00:00Z"
+    )
+
+    conversation_after_send_message = manager.get_room(room="room:general")
+
+    expected_message: dict[str, object] = {
+        "type": "error",
+        "reason": "translation_failed",
+    }
+
+    assert conversation_after_send_message.context.context == conversation.context.context
+    assert ws_joao.sent == [expected_message]
+    assert ws_maria.sent == []
+
+
+async def test_send_room_message_adds_original_message_to_room_context() -> None:
+    manager = ConnectionManager(max_connections=10)
+    service = ChatService(
+        manager=manager, translator=FakeTranslator(context_update_summary="It's a summary")
+    )
+
+    ws_joao = DummyWebSocket()
+    ws_maria = DummyWebSocket()
+
+    joao = await service.connect(ws_joao, nickname="joao", language="Portuguese")
+    maria = await service.connect(ws_maria, nickname="maria", language="English")
+
+    await service.join_room(joao, room="general")
+    await service.join_room(maria, room="general")
+
+    await service.send_room_message(
+        joao, text="Hello", message_id="msg-1", sent_at="2026-06-01T12:00:00Z"
+    )
+
+    conversation = manager.get_room(room="room:general")
+
+    assert len(conversation.context.messages) == 1
+    assert conversation.context.messages[0].nickname == "joao"
+    assert conversation.context.messages[0].message == "Hello"
+
+
+async def test_send_room_message_keeps_only_recent_messages_in_room_context() -> None:
+    manager = ConnectionManager(max_connections=10)
+    service = ChatService(
+        manager=manager, translator=FakeTranslator(context_update_summary="It's a summary")
+    )
+
+    ws_joao = DummyWebSocket()
+    ws_maria = DummyWebSocket()
+
+    joao = await service.connect(ws_joao, nickname="joao", language="Portuguese")
+    maria = await service.connect(ws_maria, nickname="maria", language="English")
+
+    await service.join_room(joao, room="general")
+    await service.join_room(maria, room="general")
+
+    await service.send_room_message(
+        joao, text="Hello 1", message_id="msg-1", sent_at="2026-06-01T12:00:00Z"
+    )
+
+    await service.send_room_message(
+        joao, text="Hello 2", message_id="msg-2", sent_at="2026-06-01T12:00:00Z"
+    )
+
+    await service.send_room_message(
+        joao, text="Hello 3", message_id="msg-3", sent_at="2026-06-01T12:00:00Z"
+    )
+
+    await service.send_room_message(
+        joao, text="Hello 4", message_id="msg-4", sent_at="2026-06-01T12:00:00Z"
+    )
+
+    await service.send_room_message(
+        joao, text="Hello 5", message_id="msg-5", sent_at="2026-06-01T12:00:00Z"
+    )
+
+    await service.send_room_message(
+        joao, text="Hello 6", message_id="msg-6", sent_at="2026-06-01T12:00:00Z"
+    )
+
+    conversation = manager.get_room(room="room:general")
+
+    assert len(conversation.context.messages) == 5
+    assert conversation.context.messages[0].nickname == "joao"
+    assert conversation.context.messages[1].nickname == "joao"
+    assert conversation.context.messages[2].nickname == "joao"
+    assert conversation.context.messages[3].nickname == "joao"
+    assert conversation.context.messages[4].nickname == "joao"
+    assert conversation.context.messages[0].message == "Hello 2"
+    assert conversation.context.messages[4].message == "Hello 6"
