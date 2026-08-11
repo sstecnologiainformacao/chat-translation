@@ -13,4 +13,11 @@ test("shows the initial login and public room preview", async ({ page }) => {
   await expect(page.getByRole("button", { name: /continue/i })).toBeVisible();
   await expect(page.getByText("Public room")).toBeVisible();
   await expect(page.getByText("Live translation preview")).toBeVisible();
+
+  await page.getByLabel("Username").fill("local-user");
+  await page.getByLabel("Password").fill("local-pass");
+  await page.getByLabel("Nickname").fill("joao");
+  await page.getByLabel("Language").fill("Portuguese");
+
+  await expect(page.getByLabel("Language")).toHaveValue("Portuguese");
 });
