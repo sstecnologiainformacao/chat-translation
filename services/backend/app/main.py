@@ -1,5 +1,8 @@
 from fastapi import FastAPI
 
+from app.repositories.in_memory import (
+    InMemoryMessageRepository,
+)
 from app.routers import auth as auth_router
 from app.routers import websocket as websocket_router
 from app.services.chat import ChatService, ConnectionManager
@@ -11,8 +14,9 @@ def create_app() -> FastAPI:
     app.include_router(auth_router.router)
     app.include_router(websocket_router.router)
     app.state.chat_service = ChatService(
-        ConnectionManager(max_connections=10),
-        create_translation_provider(),
+        manager=ConnectionManager(max_connections=10),
+        translator=create_translation_provider(),
+        repository=InMemoryMessageRepository(),
     )
 
     @app.get("/health")
