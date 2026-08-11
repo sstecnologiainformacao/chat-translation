@@ -1,3 +1,5 @@
+from app.repositories.base import StoredMessage
+from app.repositories.in_memory import InMemoryMessageRepository
 from app.services.chat import ChatService, ConnectionManager
 from app.services.translation.base import (
     TranslationContext,
@@ -180,7 +182,7 @@ async def test_find_disconnected_connection_by_nickname() -> None:
 
 async def test_join_public_room_broadcasts_join_event() -> None:
     manager = ConnectionManager(max_connections=10)
-    service = ChatService(manager, FakeTranslator())
+    service = ChatService(manager, FakeTranslator(), InMemoryMessageRepository())
     ws_joao = DummyWebSocket()
     ws_maria = DummyWebSocket()
 
@@ -204,7 +206,7 @@ async def test_join_public_room_broadcasts_join_event() -> None:
 
 async def test_leave_public_room_broadcasts_leave_event_to_remaining_members() -> None:
     manager = ConnectionManager(max_connections=10)
-    service = ChatService(manager, FakeTranslator())
+    service = ChatService(manager, FakeTranslator(), InMemoryMessageRepository())
     ws_joao = DummyWebSocket()
     ws_maria = DummyWebSocket()
 
@@ -229,7 +231,7 @@ async def test_leave_public_room_broadcasts_leave_event_to_remaining_members() -
 
 async def test_send_private_message_sends_only_to_sender_and_recipient() -> None:
     manager = ConnectionManager(max_connections=10)
-    service = ChatService(manager, FakeTranslator())
+    service = ChatService(manager, FakeTranslator(), InMemoryMessageRepository())
     ws_joao = DummyWebSocket()
     ws_maria = DummyWebSocket()
     ws_ana = DummyWebSocket()
@@ -264,7 +266,7 @@ async def test_send_private_message_sends_only_to_sender_and_recipient() -> None
 
 async def test_send_private_message_returns_error_when_recipient_is_missing() -> None:
     manager = ConnectionManager(max_connections=10)
-    service = ChatService(manager, FakeTranslator())
+    service = ChatService(manager, FakeTranslator(), InMemoryMessageRepository())
     ws_joao = DummyWebSocket()
 
     joao = await manager.connect(ws_joao, nickname="joao", language="Portuguese")
@@ -287,7 +289,7 @@ async def test_send_private_message_returns_error_when_recipient_is_missing() ->
 
 async def test_send_room_message_broadcasts_to_room_members() -> None:
     manager = ConnectionManager(max_connections=10)
-    service = ChatService(manager, FakeTranslator())
+    service = ChatService(manager, FakeTranslator(), InMemoryMessageRepository())
     ws_joao = DummyWebSocket()
     ws_maria = DummyWebSocket()
     ws_ana = DummyWebSocket()
@@ -349,7 +351,7 @@ async def test_translation_property_after_send_message() -> None:
 
 async def test_check_languages_to_translate() -> None:
     manager = ConnectionManager(max_connections=10)
-    service = ChatService(manager, FakeTranslator())
+    service = ChatService(manager, FakeTranslator(), InMemoryMessageRepository())
     ws_joao = DummyWebSocket()
     ws_maria = DummyWebSocket()
     ws_ana = DummyWebSocket()
@@ -392,7 +394,9 @@ async def test_check_languages_to_translate() -> None:
 
 async def test_translate_message_when_chat_is_private_different_language() -> None:
     manager = ConnectionManager(max_connections=10)
-    service = ChatService(manager=manager, translator=FakeTranslator())
+    service = ChatService(
+        manager=manager, translator=FakeTranslator(), repository=InMemoryMessageRepository()
+    )
 
     ws_joao = DummyWebSocket()
     ws_maria = DummyWebSocket()
@@ -428,7 +432,9 @@ async def test_translate_message_when_chat_is_private_different_language() -> No
 
 async def test_translate_message_when_chat_is_private_same_language() -> None:
     manager = ConnectionManager(max_connections=10)
-    service = ChatService(manager=manager, translator=FakeTranslator())
+    service = ChatService(
+        manager=manager, translator=FakeTranslator(), repository=InMemoryMessageRepository()
+    )
 
     ws_joao = DummyWebSocket()
     ws_maria = DummyWebSocket()
@@ -464,7 +470,11 @@ async def test_translate_message_when_chat_is_private_same_language() -> None:
 
 async def test_translate_private_message_but_error() -> None:
     manager = ConnectionManager(max_connections=10)
-    service = ChatService(manager=manager, translator=FakeTranslatorWithError())
+    service = ChatService(
+        manager=manager,
+        translator=FakeTranslatorWithError(),
+        repository=InMemoryMessageRepository(),
+    )
 
     ws_joao = DummyWebSocket()
     ws_maria = DummyWebSocket()
@@ -494,7 +504,9 @@ async def test_translate_private_message_but_error() -> None:
 
 async def test_create_public_chat_context_key() -> None:
     manager = ConnectionManager(max_connections=10)
-    service = ChatService(manager=manager, translator=FakeTranslator())
+    service = ChatService(
+        manager=manager, translator=FakeTranslator(), repository=InMemoryMessageRepository()
+    )
 
     ws_joao = DummyWebSocket()
     ws_maria = DummyWebSocket()
@@ -521,7 +533,11 @@ async def test_create_public_chat_context_key() -> None:
 
 async def test_translate_public_message_but_error() -> None:
     manager = ConnectionManager(max_connections=10)
-    service = ChatService(manager=manager, translator=FakeTranslatorWithError())
+    service = ChatService(
+        manager=manager,
+        translator=FakeTranslatorWithError(),
+        repository=InMemoryMessageRepository(),
+    )
 
     ws_joao = DummyWebSocket()
     ws_maria = DummyWebSocket()
@@ -557,7 +573,9 @@ async def test_translate_public_message_but_error() -> None:
 async def test_send_room_message_updates_room_context_after_successful_translation() -> None:
     manager = ConnectionManager(max_connections=10)
     service = ChatService(
-        manager=manager, translator=FakeTranslator(context_update_summary="It's a summary")
+        manager=manager,
+        translator=FakeTranslator(context_update_summary="It's a summary"),
+        repository=InMemoryMessageRepository(),
     )
 
     ws_joao = DummyWebSocket()
@@ -583,7 +601,11 @@ async def test_send_room_message_does_not_update_room_context_after_failed_trans
     conversation = manager.get_room(room="room:general")
     conversation.context.context = "A text to be checked later"
 
-    service = ChatService(manager=manager, translator=FakeTranslatorWithError())
+    service = ChatService(
+        manager=manager,
+        translator=FakeTranslatorWithError(),
+        repository=InMemoryMessageRepository(),
+    )
 
     ws_joao = DummyWebSocket()
     ws_maria = DummyWebSocket()
@@ -613,7 +635,9 @@ async def test_send_room_message_does_not_update_room_context_after_failed_trans
 async def test_send_room_message_adds_original_message_to_room_context() -> None:
     manager = ConnectionManager(max_connections=10)
     service = ChatService(
-        manager=manager, translator=FakeTranslator(context_update_summary="It's a summary")
+        manager=manager,
+        translator=FakeTranslator(context_update_summary="It's a summary"),
+        repository=InMemoryMessageRepository(),
     )
 
     ws_joao = DummyWebSocket()
@@ -639,7 +663,9 @@ async def test_send_room_message_adds_original_message_to_room_context() -> None
 async def test_send_room_message_keeps_only_recent_messages_in_room_context() -> None:
     manager = ConnectionManager(max_connections=10)
     service = ChatService(
-        manager=manager, translator=FakeTranslator(context_update_summary="It's a summary")
+        manager=manager,
+        translator=FakeTranslator(context_update_summary="It's a summary"),
+        repository=InMemoryMessageRepository(),
     )
 
     ws_joao = DummyWebSocket()
@@ -685,3 +711,251 @@ async def test_send_room_message_keeps_only_recent_messages_in_room_context() ->
     assert conversation.context.messages[4].nickname == "joao"
     assert conversation.context.messages[0].message == "Hello 2"
     assert conversation.context.messages[4].message == "Hello 6"
+
+
+async def test_send_room_message_keeps_only_recent_messages_in_memory_repository() -> None:
+    manager = ConnectionManager(max_connections=10)
+    repository = InMemoryMessageRepository()
+    service = ChatService(
+        manager=manager,
+        translator=FakeTranslator(context_update_summary="It's a summary"),
+        repository=repository,
+    )
+
+    ws_joao = DummyWebSocket()
+    ws_maria = DummyWebSocket()
+
+    joao = await service.connect(ws_joao, nickname="joao", language="Portuguese")
+    maria = await service.connect(ws_maria, nickname="maria", language="English")
+
+    await service.join_public_room(joao, room="general")
+    await service.join_public_room(maria, room="general")
+
+    await service.send_room_message(
+        joao, text="Hello 1", message_id="msg-1", sent_at="2026-06-01T12:00:00Z"
+    )
+
+    await service.send_room_message(
+        joao, text="Hello 2", message_id="msg-2", sent_at="2026-06-01T12:00:00Z"
+    )
+
+    await service.send_room_message(
+        joao, text="Hello 3", message_id="msg-3", sent_at="2026-06-01T12:00:00Z"
+    )
+
+    await service.send_room_message(
+        joao, text="Hello 4", message_id="msg-4", sent_at="2026-06-01T12:00:00Z"
+    )
+
+    await service.send_room_message(
+        joao, text="Hello 5", message_id="msg-5", sent_at="2026-06-01T12:00:00Z"
+    )
+
+    await service.send_room_message(
+        joao, text="Hello 6", message_id="msg-6", sent_at="2026-06-01T12:00:00Z"
+    )
+
+    in_memory_messages: list[StoredMessage] = await repository.get_recent_messages(
+        room="general", number_of_messages=5
+    )
+
+    assert len(in_memory_messages) == 5
+    assert in_memory_messages[0].message_id == "msg-2"
+    assert in_memory_messages[1].message_id == "msg-3"
+    assert in_memory_messages[2].message_id == "msg-4"
+    assert in_memory_messages[3].message_id == "msg-5"
+    assert in_memory_messages[4].message_id == "msg-6"
+
+
+async def test_send_private_message_keeps_only_recent_messages_in_memory_repository() -> None:
+    manager = ConnectionManager(max_connections=10)
+    repository = InMemoryMessageRepository()
+    service = ChatService(
+        manager=manager,
+        translator=FakeTranslator(context_update_summary="It's a summary"),
+        repository=repository,
+    )
+
+    ws_joao = DummyWebSocket()
+    ws_maria = DummyWebSocket()
+
+    joao = await service.connect(ws_joao, nickname="joao", language="Portuguese")
+    maria = await service.connect(ws_maria, nickname="maria", language="English")
+
+    await service.join_room(joao, room="private:joao:maria")
+    await service.join_room(maria, room="private:joao:maria")
+
+    await service.send_private_message(
+        joao,
+        text="Hello 1",
+        message_id="msg-1",
+        sent_at="2026-06-01T12:00:00Z",
+        recipient_nickname="maria",
+    )
+
+    await service.send_private_message(
+        joao,
+        text="Hello 2",
+        message_id="msg-2",
+        sent_at="2026-06-01T12:00:00Z",
+        recipient_nickname="maria",
+    )
+
+    await service.send_private_message(
+        joao,
+        text="Hello 3",
+        message_id="msg-3",
+        sent_at="2026-06-01T12:00:00Z",
+        recipient_nickname="maria",
+    )
+
+    await service.send_private_message(
+        joao,
+        text="Hello 4",
+        message_id="msg-4",
+        sent_at="2026-06-01T12:00:00Z",
+        recipient_nickname="maria",
+    )
+
+    await service.send_private_message(
+        joao,
+        text="Hello 5",
+        message_id="msg-5",
+        sent_at="2026-06-01T12:00:00Z",
+        recipient_nickname="maria",
+    )
+
+    await service.send_private_message(
+        joao,
+        text="Hello 6",
+        message_id="msg-6",
+        sent_at="2026-06-01T12:00:00Z",
+        recipient_nickname="maria",
+    )
+
+    in_memory_messages: list[StoredMessage] = await repository.get_recent_messages(
+        room="private:joao:maria", number_of_messages=5
+    )
+
+    assert len(in_memory_messages) == 5
+    assert in_memory_messages[0].message_id == "msg-2"
+    assert in_memory_messages[1].message_id == "msg-3"
+    assert in_memory_messages[2].message_id == "msg-4"
+    assert in_memory_messages[3].message_id == "msg-5"
+    assert in_memory_messages[4].message_id == "msg-6"
+
+
+async def test_send_private_message_does_not_save_message_when_translation_fails() -> None:
+    manager = ConnectionManager(max_connections=10)
+    repository = InMemoryMessageRepository()
+    service = ChatService(
+        manager=manager,
+        translator=FakeTranslatorWithError(),
+        repository=repository,
+    )
+
+    ws_joao = DummyWebSocket()
+    ws_maria = DummyWebSocket()
+
+    joao = await service.connect(ws_joao, nickname="joao", language="Portuguese")
+    maria = await service.connect(ws_maria, nickname="maria", language="English")
+
+    await service.join_room(joao, room="private:joao:maria")
+    await service.join_room(maria, room="private:joao:maria")
+
+    await service.send_private_message(
+        joao,
+        text="Hello 1",
+        message_id="msg-1",
+        sent_at="2026-06-01T12:00:00Z",
+        recipient_nickname="maria",
+    )
+    in_memory_messages: list[StoredMessage] = await repository.get_recent_messages(
+        room="private:joao:maria", number_of_messages=1
+    )
+
+    assert in_memory_messages == []
+
+
+async def test_send_room_message_does_not_save_message_when_translation_fails() -> None:
+    manager = ConnectionManager(max_connections=10)
+    repository = InMemoryMessageRepository()
+    service = ChatService(
+        manager=manager, translator=FakeTranslatorWithError(), repository=repository
+    )
+
+    ws_joao = DummyWebSocket()
+    ws_maria = DummyWebSocket()
+    ws_ana = DummyWebSocket()
+    ws_pedro = DummyWebSocket()
+    ws_jonny = DummyWebSocket()
+
+    joao = await manager.connect(ws_joao, nickname="joao", language="Portuguese")
+    maria = await manager.connect(ws_maria, nickname="maria", language="English")
+    ana = await manager.connect(ws_ana, nickname="ana", language="Spanish")
+    pedro = await manager.connect(ws_pedro, nickname="pedro", language="Portuguese")
+    jonny = await manager.connect(ws_jonny, nickname="jonny", language="English")
+
+    await manager.join_room(joao, room="room:general")
+    await manager.join_room(maria, room="room:general")
+    await manager.join_room(ana, room="room:general")
+    await manager.join_room(pedro, room="room:general")
+    await manager.join_room(jonny, room="room:general")
+
+    await service.send_room_message(
+        joao, text="Hello", message_id="msg-1", sent_at="2026-06-01T12:00:00Z"
+    )
+
+    expected_message: dict[str, object] = {
+        "type": "error",
+        "reason": "translation_failed",
+    }
+
+    in_memory_messages: list[StoredMessage] = await repository.get_recent_messages(
+        room="general", number_of_messages=1
+    )
+
+    assert ws_joao.sent == [expected_message]
+    assert ws_maria.sent == []
+    assert in_memory_messages == []
+
+
+async def test_load_messages_from_repository_when_new_user_join_chat() -> None:
+    manager = ConnectionManager(max_connections=10)
+    service = ChatService(
+        manager=manager,
+        translator=FakeTranslator(context_update_summary="It's a summary"),
+        repository=InMemoryMessageRepository(),
+    )
+
+    ws_joao = DummyWebSocket()
+    joao = await service.connect(ws_joao, nickname="joao", language="Portuguese")
+    await service.join_room(joao, room="general")
+
+    await service.send_room_message(
+        joao, text="Hello", message_id="msg-1", sent_at="2026-06-01T12:00:00Z"
+    )
+
+    conversation = manager.get_room(room="room:general")
+
+    assert len(conversation.context.messages) == 1
+    assert conversation.context.messages[0].nickname == "joao"
+    assert conversation.context.messages[0].message == "Hello"
+
+    ws_maria = DummyWebSocket()
+    maria = await service.connect(ws_maria, nickname="maria", language="English")
+    await service.join_room(maria, room="general")
+
+    assert ws_maria.sent != []
+    assert ws_maria.sent[0]["type"] == "room_history"
+    assert ws_maria.sent[0]["room"] == "general"
+    assert ws_maria.sent[0]["messages"] != []
+
+    assert isinstance(ws_maria.sent[0]["messages"], list)
+    messages: list[dict[str, object]] = ws_maria.sent[0]["messages"]
+    message: dict[str, object] = messages[0]
+
+    assert isinstance(message, dict)
+    assert message["message_id"] == "msg-1"
+    assert message["original_text"] == "Hello"
+    assert message["sender_nickname"] == "joao"

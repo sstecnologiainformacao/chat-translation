@@ -1,5 +1,6 @@
 from typing import Protocol
 
+from app.repositories.base import MessageRepository, StoredMessage
 from app.services.translation.base import (
     Message,
     TranslationContext,
@@ -142,9 +143,15 @@ class ConnectionManager:
 
 
 class ChatService:
-    def __init__(self, manager: ConnectionManager, translator: TranslationProvider) -> None:
+    def __init__(
+        self,
+        manager: ConnectionManager,
+        translator: TranslationProvider,
+        repository: MessageRepository,
+    ) -> None:
         self.translator: TranslationProvider = translator
         self._manager = manager
+        self.repository: MessageRepository = repository
 
     def build_room_key(self, raw_key: str) -> str:
         room_name = raw_key
@@ -210,9 +217,8 @@ class ChatService:
 
         try:
             sorted_users_nicks = sorted([sender.nickname, recipient_nickname])
-            conversation: Conversation | None = self._get_room(
-                room=f"private:{':'.join(sorted_users_nicks)}"
-            )
+            room = f"private:{':'.join(sorted_users_nicks)}"
+            conversation: Conversation | None = self._get_room(room=room)
 
             if conversation is not None:
                 translations = await self._translate_text(
@@ -241,6 +247,15 @@ class ChatService:
                     conversation.update_context(new_context=translations.context_update.summary)
                 await self._manager.send_to(sender, message)
                 await self._manager.send_to(recipient, message)
+                await self.repository.save_message(
+                    message_id=message_id,
+                    room=room,
+                    sender_nickname=sender.nickname,
+                    sender_language=sender.language,
+                    original_text=text,
+                    translations=result_translation,
+                    sent_at=sent_at,
+                )
             else:
                 raise TranslationError
         except TranslationError:
@@ -301,6 +316,15 @@ class ChatService:
                 original_message = Message(message=text, nickname=sender.nickname)
                 conversation.add_message(message=original_message)
                 await self._manager.broadcast_to_room(self._get_key_room_general(), message)
+                await self.repository.save_message(
+                    message_id=message_id,
+                    room="general",
+                    sender_nickname=sender.nickname,
+                    sender_language=sender.language,
+                    original_text=text,
+                    translations=translations_dict,
+                    sent_at=sent_at,
+                )
         except TranslationError:
             await self._manager.send_to(
                 sender,
@@ -355,6 +379,30 @@ class ChatService:
 
     async def join_room(self, connection: ActiveConnection, *, room: str) -> None:
         await self._manager.join_room(connection, room=self.build_room_key(room))
+        messages: list[StoredMessage] = await self.repository.get_recent_messages(
+            room=room, number_of_messages=5
+        )
+
+        if len(messages) >= 1:
+            messages_history: list[dict[str, object]] = []
+            for message in messages:
+                message_history: dict[str, object] = {
+                    "type": "room_history",
+                    "message_id": message.message_id,
+                    "sender_nickname": message.sender_nickname,
+                    "sender_language": message.sender_language,
+                    "original_text": message.original_text,
+                    "translations": message.translations,
+                    "sent_at": message.sent_at,
+                }
+                messages_history.append(message_history)
+
+            payload_history: dict[str, object] = {
+                "type": "room_history",
+                "room": room,
+                "messages": messages_history,
+            }
+            await self._manager.send_to(connection, payload_history)
 
     async def disconnect(self, connection: ActiveConnection) -> None:
         await self._manager.disconnect(connection=connection)
