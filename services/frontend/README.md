@@ -38,8 +38,25 @@ The frontend reads the backend URL from:
 VITE_API_URL=http://127.0.0.1:8000
 ```
 
-If the variable is not set, the app should default to `http://localhost:8000` when API and
-WebSocket clients are implemented.
+If the variable is not set, the app defaults to `http://localhost:8000` for HTTP and
+WebSocket clients.
+
+## Docker
+
+Build commands run from the repository root because the frontend is part of the pnpm
+workspace and uses the root `pnpm-lock.yaml`.
+
+Development image:
+
+```bash
+docker build -f services/frontend/Dockerfile.dev -t chat-translation-frontend-dev .
+```
+
+Production image:
+
+```bash
+docker build -f services/frontend/Dockerfile -t chat-translation-frontend .
+```
 
 ## Quality Checks
 
@@ -62,14 +79,18 @@ Implemented:
 - shadcn/ui baseline components.
 - Vitest + React Testing Library setup.
 - Playwright setup for browser-level checks.
-- Initial app shell with login form and public room preview.
+- Login form wired to `POST /auth/login`.
+- `localStorage` JWT persistence with client-side profile decoding.
+- Frontend message types that mirror the backend WebSocket contracts.
+- Public chat WebSocket hook and chat-specific orchestration.
+- Public room message list, message composer, and connection state components.
+- Frontend Dockerfiles for local dev and production-style builds.
 
 Next:
 
-- Add frontend types that mirror the backend Pydantic message schemas.
-- Add `lib/api.ts` for `POST /auth/login`.
-- Add `lib/auth.ts` for `localStorage` token persistence.
-- Connect the public chat WebSocket flow.
+- Validate the full frontend and backend flow locally with two browser sessions.
+- Add Docker Compose orchestration for the local backend/frontend stack.
+- Add private chat UI after the public flow is verified end to end.
 
 ## Architecture Notes
 

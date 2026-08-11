@@ -1,0 +1,20 @@
+# syntax=docker/dockerfile:1.7
+
+FROM node:20-alpine
+
+WORKDIR /app
+
+RUN corepack enable && corepack prepare pnpm@9.0.0 --activate
+
+COPY package.json pnpm-lock.yaml pnpm-workspace.yaml ./
+COPY services/frontend/package.json services/frontend/package.json
+
+RUN pnpm install --filter frontend --frozen-lockfile
+
+COPY services/frontend services/frontend
+
+WORKDIR /app/services/frontend
+
+EXPOSE 5173
+
+CMD ["pnpm", "dev", "--host", "0.0.0.0"]
