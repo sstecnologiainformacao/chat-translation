@@ -5,7 +5,10 @@ import { ArrowRight, Languages, Lock, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
+import { ConnectionBadge } from "@/features/chat/ConnectionBadge";
+import { MessageBubble } from "@/features/chat/MessageBubble";
+import { MessageInput } from "@/features/chat/MessageInput";
+import { MessageList } from "@/features/chat/MessageList";
 import { useChat } from "@/features/chat/useChat";
 import { ApiError, login } from "@/lib/api";
 import { clearAuthToken, getAuthToken, saveAuthToken } from "@/lib/auth";
@@ -70,9 +73,7 @@ function App() {
     setLoginError(null);
   }
 
-  function handleSendMessage(event: FormEvent<HTMLFormElement>) {
-    event.preventDefault();
-
+  function handleSendMessage() {
     if (chat.sendPublicMessage(composerText)) {
       setComposerText("");
     }
@@ -219,12 +220,10 @@ function App() {
                 <p className="text-sm font-medium">Public room</p>
                 <p className="text-xs text-muted-foreground">general</p>
               </div>
-              <div className="flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1 text-xs text-muted-foreground">
-                <span className="size-2 rounded-full bg-primary" />
-                {authenticated
-                  ? getConnectionLabel(chat.status)
-                  : "Ready to connect"}
-              </div>
+              <ConnectionBadge
+                authenticated={authenticated}
+                status={chat.status}
+              />
             </div>
 
             <div className="overflow-hidden rounded-xl border border-border bg-background shadow-sm">
@@ -240,76 +239,27 @@ function App() {
 
               <div className="space-y-4 p-4">
                 {authenticated ? (
-                  chat.messages.length > 0 ? (
-                    chat.messages.map((message) => (
-                      <article
-                        key={message.id}
-                        className="rounded-lg border border-border p-4"
-                      >
-                        <div className="mb-3 flex items-center justify-between gap-3">
-                          <div>
-                            <p className="text-sm font-medium">
-                              {message.senderNickname}
-                            </p>
-                            <p className="text-xs text-muted-foreground">
-                              {message.senderLanguage}
-                            </p>
-                          </div>
-                        </div>
-                        <p className="text-base leading-7">
-                          {message.displayText}
-                        </p>
-                        <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                          Original: {message.originalText}
-                        </p>
-                      </article>
-                    ))
-                  ) : (
-                    <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
-                      No messages yet.
-                    </div>
-                  )
+                  <MessageList messages={chat.messages} />
                 ) : (
                   sampleMessages.map((message) => (
-                    <article
+                    <MessageBubble
                       key={message.original}
-                      className="rounded-lg border border-border p-4"
-                    >
-                      <div className="mb-3 flex items-center justify-between gap-3">
-                        <div>
-                          <p className="text-sm font-medium">
-                            {message.author}
-                          </p>
-                          <p className="text-xs text-muted-foreground">
-                            {message.language}
-                          </p>
-                        </div>
-                      </div>
-                      <p className="text-base leading-7">
-                        {message.translated}
-                      </p>
-                      <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                        Original: {message.original}
-                      </p>
-                    </article>
+                      author={message.author}
+                      language={message.language}
+                      originalText={message.original}
+                      text={message.translated}
+                    />
                   ))
                 )}
               </div>
 
               <div className="border-t border-border p-4">
                 {authenticated ? (
-                  <form className="flex gap-2" onSubmit={handleSendMessage}>
-                    <Textarea
-                      aria-label="Message"
-                      className="min-h-11 resize-none"
-                      onChange={(event) => setComposerText(event.target.value)}
-                      placeholder="Type a public message"
-                      value={composerText}
-                    />
-                    <Button type="submit" className="h-11">
-                      Send
-                    </Button>
-                  </form>
+                  <MessageInput
+                    onChange={setComposerText}
+                    onSubmit={handleSendMessage}
+                    value={composerText}
+                  />
                 ) : (
                   <div className="flex min-h-11 items-center rounded-lg border border-input bg-muted/60 px-3 text-sm text-muted-foreground">
                     Message composer will appear after login.
@@ -322,22 +272,6 @@ function App() {
       </section>
     </main>
   );
-}
-
-function getConnectionLabel(status: string): string {
-  if (status === "open") {
-    return "Connected";
-  }
-
-  if (status === "connecting") {
-    return "Connecting";
-  }
-
-  if (status === "closed") {
-    return "Disconnected";
-  }
-
-  return "Session active";
 }
 
 function getLoginErrorMessage(error: unknown): string {
