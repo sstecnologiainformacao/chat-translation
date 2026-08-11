@@ -11,7 +11,7 @@ import { MessageInput } from "@/features/chat/MessageInput";
 import { MessageList } from "@/features/chat/MessageList";
 import { useChat } from "@/features/chat/useChat";
 import { ApiError, login } from "@/lib/api";
-import { clearAuthToken, getAuthToken, saveAuthToken } from "@/lib/auth";
+import { clearAuthToken, getAuthSession, saveAuthToken } from "@/lib/auth";
 import type { LoginRequest } from "@/types/auth";
 
 const sampleMessages = [
@@ -30,15 +30,13 @@ const sampleMessages = [
 ];
 
 function App() {
-  const [authToken, setAuthToken] = useState(() => getAuthToken());
+  const [authSession, setAuthSession] = useState(() => getAuthSession());
   const [composerText, setComposerText] = useState("");
   const [loginError, setLoginError] = useState<string | null>(null);
-  const [preferredLanguage, setPreferredLanguage] = useState<string | null>(
-    null,
-  );
   const [submitting, setSubmitting] = useState(false);
+  const authToken = authSession?.token ?? null;
   const authenticated = authToken !== null;
-  const chat = useChat(authToken, preferredLanguage);
+  const chat = useChat(authToken, authSession?.language ?? null);
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -56,8 +54,11 @@ function App() {
     try {
       const response = await login(payload);
       saveAuthToken(response.token);
-      setAuthToken(response.token);
-      setPreferredLanguage(payload.language);
+      setAuthSession({
+        language: payload.language,
+        nickname: payload.nickname,
+        token: response.token,
+      });
     } catch (error) {
       setLoginError(getLoginErrorMessage(error));
     } finally {
@@ -67,8 +68,7 @@ function App() {
 
   function handleSignOut() {
     clearAuthToken();
-    setAuthToken(null);
-    setPreferredLanguage(null);
+    setAuthSession(null);
     setComposerText("");
     setLoginError(null);
   }

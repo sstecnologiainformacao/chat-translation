@@ -5,7 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import App from "@/App";
 import { useChat } from "@/features/chat/useChat";
 import { ApiError, login } from "@/lib/api";
-import { clearAuthToken, getAuthToken, saveAuthToken } from "@/lib/auth";
+import { clearAuthToken, getAuthSession, saveAuthToken } from "@/lib/auth";
 
 vi.mock("@/lib/api", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api")>("@/lib/api");
@@ -18,7 +18,7 @@ vi.mock("@/lib/api", async () => {
 
 vi.mock("@/lib/auth", () => ({
   clearAuthToken: vi.fn(),
-  getAuthToken: vi.fn(),
+  getAuthSession: vi.fn(),
   saveAuthToken: vi.fn(),
 }));
 
@@ -28,7 +28,7 @@ vi.mock("@/features/chat/useChat", () => ({
 
 const mockedLogin = vi.mocked(login);
 const mockedClearAuthToken = vi.mocked(clearAuthToken);
-const mockedGetAuthToken = vi.mocked(getAuthToken);
+const mockedGetAuthSession = vi.mocked(getAuthSession);
 const mockedSaveAuthToken = vi.mocked(saveAuthToken);
 const mockedUseChat = vi.mocked(useChat);
 const sendPublicMessage = vi.fn();
@@ -36,7 +36,7 @@ const sendPublicMessage = vi.fn();
 describe("App", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockedGetAuthToken.mockReturnValue(null);
+    mockedGetAuthSession.mockReturnValue(null);
     mockedUseChat.mockReturnValue({
       closeReason: null,
       messages: [],
@@ -111,11 +111,19 @@ describe("App", () => {
   });
 
   it("starts connected when a token already exists and can sign out", async () => {
-    mockedGetAuthToken.mockReturnValue("stored-token");
+    mockedGetAuthSession.mockReturnValue({
+      language: "Portuguese",
+      nickname: "joao",
+      token: "stored-token",
+    });
     const user = userEvent.setup();
 
     render(<App />);
 
+    expect(mockedUseChat).toHaveBeenLastCalledWith(
+      "stored-token",
+      "Portuguese",
+    );
     expect(
       screen.getByRole("heading", { name: "Connected" }),
     ).toBeInTheDocument();
@@ -129,7 +137,11 @@ describe("App", () => {
   });
 
   it("renders received public chat messages", () => {
-    mockedGetAuthToken.mockReturnValue("stored-token");
+    mockedGetAuthSession.mockReturnValue({
+      language: "Portuguese",
+      nickname: "joao",
+      token: "stored-token",
+    });
     mockedUseChat.mockReturnValue({
       closeReason: null,
       messages: [
@@ -153,7 +165,11 @@ describe("App", () => {
   });
 
   it("sends public messages from the composer", async () => {
-    mockedGetAuthToken.mockReturnValue("stored-token");
+    mockedGetAuthSession.mockReturnValue({
+      language: "Portuguese",
+      nickname: "joao",
+      token: "stored-token",
+    });
     sendPublicMessage.mockReturnValue(true);
     const user = userEvent.setup();
 

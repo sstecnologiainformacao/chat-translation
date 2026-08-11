@@ -1,6 +1,21 @@
+import { jwtDecode } from "jwt-decode";
+
 export const AUTH_TOKEN_STORAGE_KEY = "chat-translation:auth-token";
 
 type TokenStorage = Pick<Storage, "getItem" | "removeItem" | "setItem">;
+
+export type AuthTokenPayload = {
+  exp: number;
+  iat: number;
+  language: string;
+  nickname: string;
+};
+
+export type AuthSession = {
+  language: string;
+  nickname: string;
+  token: string;
+};
 
 export function saveAuthToken(
   token: string,
@@ -25,4 +40,50 @@ export function hasAuthToken(
   storage: TokenStorage = window.localStorage,
 ): boolean {
   return getAuthToken(storage) !== null;
+}
+
+export function readAuthTokenPayload(token: string): AuthTokenPayload | null {
+  try {
+    const payload = jwtDecode<Partial<AuthTokenPayload>>(token);
+
+    if (
+      typeof payload.exp === "number" &&
+      typeof payload.iat === "number" &&
+      typeof payload.language === "string" &&
+      typeof payload.nickname === "string"
+    ) {
+      return {
+        exp: payload.exp,
+        iat: payload.iat,
+        language: payload.language,
+        nickname: payload.nickname,
+      };
+    }
+  } catch {
+    return null;
+  }
+
+  return null;
+}
+
+export function getAuthSession(
+  storage: TokenStorage = window.localStorage,
+): AuthSession | null {
+  const token = getAuthToken(storage);
+
+  if (token === null) {
+    return null;
+  }
+
+  const payload = readAuthTokenPayload(token);
+
+  if (payload === null) {
+    return null;
+  }
+
+  return {
+    language: payload.language,
+    nickname: payload.nickname,
+    token,
+  };
 }
