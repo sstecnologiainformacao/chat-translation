@@ -20,5 +20,5 @@ Create local environment files:
 Then edit `environment/backend.env` and run:
 
 ```bash
-docker compose -f docker/docker-compose.yml up --build
+docker compose up --build
 ```
