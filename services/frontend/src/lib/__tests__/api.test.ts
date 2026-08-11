@@ -1,6 +1,11 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { buildApiUrl, getApiBaseUrl, login } from "@/lib/api";
+import {
+  buildApiUrl,
+  buildWebSocketUrl,
+  getApiBaseUrl,
+  login,
+} from "@/lib/api";
 import type { LoginRequest } from "@/types/auth";
 
 const loginPayload: LoginRequest = {
@@ -29,6 +34,12 @@ describe("api helpers", () => {
     expect(buildApiUrl("auth/login", "http://127.0.0.1:8000")).toBe(
       "http://127.0.0.1:8000/auth/login",
     );
+  });
+
+  it("builds WebSocket URLs with the token query parameter", () => {
+    expect(
+      buildWebSocketUrl("/ws/chat", "jwt-token", "http://127.0.0.1:8000"),
+    ).toBe("ws://127.0.0.1:8000/ws/chat?token=jwt-token");
   });
 
   it("sends login credentials and returns the token", async () => {

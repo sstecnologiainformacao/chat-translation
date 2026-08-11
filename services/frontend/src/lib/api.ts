@@ -36,6 +36,17 @@ export function buildApiUrl(path: string, apiBaseUrl?: string): string {
   return `${getApiBaseUrl(apiBaseUrl)}${normalizedPath}`;
 }
 
+export function buildWebSocketUrl(
+  path: string,
+  token: string,
+  apiBaseUrl?: string,
+): string {
+  const url = new URL(buildApiUrl(path, apiBaseUrl));
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  url.searchParams.set("token", token);
+  return url.toString();
+}
+
 export async function login(
   payload: LoginRequest,
   { apiBaseUrl, fetcher = fetch }: RequestOptions = {},

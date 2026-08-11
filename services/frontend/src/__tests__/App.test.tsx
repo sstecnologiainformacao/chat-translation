@@ -3,8 +3,9 @@ import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "@/App";
+import { useChat } from "@/features/chat/useChat";
 import { ApiError, login } from "@/lib/api";
-import { clearAuthToken, hasAuthToken, saveAuthToken } from "@/lib/auth";
+import { clearAuthToken, getAuthToken, saveAuthToken } from "@/lib/auth";
 
 vi.mock("@/lib/api", async () => {
   const actual = await vi.importActual<typeof import("@/lib/api")>("@/lib/api");
@@ -17,19 +18,31 @@ vi.mock("@/lib/api", async () => {
 
 vi.mock("@/lib/auth", () => ({
   clearAuthToken: vi.fn(),
-  hasAuthToken: vi.fn(),
+  getAuthToken: vi.fn(),
   saveAuthToken: vi.fn(),
+}));
+
+vi.mock("@/features/chat/useChat", () => ({
+  useChat: vi.fn(),
 }));
 
 const mockedLogin = vi.mocked(login);
 const mockedClearAuthToken = vi.mocked(clearAuthToken);
-const mockedHasAuthToken = vi.mocked(hasAuthToken);
+const mockedGetAuthToken = vi.mocked(getAuthToken);
 const mockedSaveAuthToken = vi.mocked(saveAuthToken);
+const mockedUseChat = vi.mocked(useChat);
+const sendPublicMessage = vi.fn();
 
 describe("App", () => {
   beforeEach(() => {
     vi.clearAllMocks();
-    mockedHasAuthToken.mockReturnValue(false);
+    mockedGetAuthToken.mockReturnValue(null);
+    mockedUseChat.mockReturnValue({
+      closeReason: null,
+      messages: [],
+      sendPublicMessage,
+      status: "open",
+    });
   });
 
   it("renders the login form and public room preview", () => {
@@ -74,6 +87,7 @@ describe("App", () => {
     expect(
       screen.getByRole("button", { name: "Sign out" }),
     ).toBeInTheDocument();
+    expect(mockedUseChat).toHaveBeenLastCalledWith("jwt-token", "Portuguese");
   });
 
   it("shows a readable message when credentials are invalid", async () => {
@@ -97,7 +111,7 @@ describe("App", () => {
   });
 
   it("starts connected when a token already exists and can sign out", async () => {
-    mockedHasAuthToken.mockReturnValue(true);
+    mockedGetAuthToken.mockReturnValue("stored-token");
     const user = userEvent.setup();
 
     render(<App />);
@@ -112,5 +126,43 @@ describe("App", () => {
     expect(
       screen.getByRole("heading", { name: "Join the room" }),
     ).toBeInTheDocument();
+  });
+
+  it("renders received public chat messages", () => {
+    mockedGetAuthToken.mockReturnValue("stored-token");
+    mockedUseChat.mockReturnValue({
+      closeReason: null,
+      messages: [
+        {
+          displayText: "Hello",
+          id: "msg-1",
+          originalText: "Ola",
+          senderLanguage: "Portuguese",
+          senderNickname: "joao",
+          sentAt: "2026-08-11T12:00:00Z",
+        },
+      ],
+      sendPublicMessage,
+      status: "open",
+    });
+
+    render(<App />);
+
+    expect(screen.getByText("Hello")).toBeInTheDocument();
+    expect(screen.getByText("Original: Ola")).toBeInTheDocument();
+  });
+
+  it("sends public messages from the composer", async () => {
+    mockedGetAuthToken.mockReturnValue("stored-token");
+    sendPublicMessage.mockReturnValue(true);
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await user.type(screen.getByLabelText("Message"), "Hello public room");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(sendPublicMessage).toHaveBeenCalledWith("Hello public room");
+    expect(screen.getByLabelText("Message")).toHaveValue("");
   });
 });

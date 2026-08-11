@@ -5,8 +5,10 @@ import { ArrowRight, Languages, Lock, MessageCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { useChat } from "@/features/chat/useChat";
 import { ApiError, login } from "@/lib/api";
-import { clearAuthToken, hasAuthToken, saveAuthToken } from "@/lib/auth";
+import { clearAuthToken, getAuthToken, saveAuthToken } from "@/lib/auth";
 import type { LoginRequest } from "@/types/auth";
 
 const sampleMessages = [
@@ -25,9 +27,15 @@ const sampleMessages = [
 ];
 
 function App() {
-  const [authenticated, setAuthenticated] = useState(() => hasAuthToken());
+  const [authToken, setAuthToken] = useState(() => getAuthToken());
+  const [composerText, setComposerText] = useState("");
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [preferredLanguage, setPreferredLanguage] = useState<string | null>(
+    null,
+  );
   const [submitting, setSubmitting] = useState(false);
+  const authenticated = authToken !== null;
+  const chat = useChat(authToken, preferredLanguage);
 
   async function handleLogin(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -45,7 +53,8 @@ function App() {
     try {
       const response = await login(payload);
       saveAuthToken(response.token);
-      setAuthenticated(true);
+      setAuthToken(response.token);
+      setPreferredLanguage(payload.language);
     } catch (error) {
       setLoginError(getLoginErrorMessage(error));
     } finally {
@@ -55,8 +64,18 @@ function App() {
 
   function handleSignOut() {
     clearAuthToken();
-    setAuthenticated(false);
+    setAuthToken(null);
+    setPreferredLanguage(null);
+    setComposerText("");
     setLoginError(null);
+  }
+
+  function handleSendMessage(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+
+    if (chat.sendPublicMessage(composerText)) {
+      setComposerText("");
+    }
   }
 
   return (
@@ -97,8 +116,9 @@ function App() {
                     Connected
                   </h1>
                   <p className="text-sm leading-6 text-muted-foreground">
-                    You are ready to join the public chat. The WebSocket
-                    connection will be wired in the next slice.
+                    You are connected to the public room. Messages are
+                    translated when the backend sends a translation for your
+                    language.
                   </p>
                 </div>
               </div>
@@ -201,7 +221,9 @@ function App() {
               </div>
               <div className="flex items-center gap-2 rounded-full border border-border bg-background px-3 py-1 text-xs text-muted-foreground">
                 <span className="size-2 rounded-full bg-primary" />
-                {authenticated ? "Session active" : "Ready to connect"}
+                {authenticated
+                  ? getConnectionLabel(chat.status)
+                  : "Ready to connect"}
               </div>
             </div>
 
@@ -217,33 +239,82 @@ function App() {
               </div>
 
               <div className="space-y-4 p-4">
-                {sampleMessages.map((message) => (
-                  <article
-                    key={message.original}
-                    className="rounded-lg border border-border p-4"
-                  >
-                    <div className="mb-3 flex items-center justify-between gap-3">
-                      <div>
-                        <p className="text-sm font-medium">{message.author}</p>
-                        <p className="text-xs text-muted-foreground">
-                          {message.language}
+                {authenticated ? (
+                  chat.messages.length > 0 ? (
+                    chat.messages.map((message) => (
+                      <article
+                        key={message.id}
+                        className="rounded-lg border border-border p-4"
+                      >
+                        <div className="mb-3 flex items-center justify-between gap-3">
+                          <div>
+                            <p className="text-sm font-medium">
+                              {message.senderNickname}
+                            </p>
+                            <p className="text-xs text-muted-foreground">
+                              {message.senderLanguage}
+                            </p>
+                          </div>
+                        </div>
+                        <p className="text-base leading-7">
+                          {message.displayText}
                         </p>
-                      </div>
+                        <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                          Original: {message.originalText}
+                        </p>
+                      </article>
+                    ))
+                  ) : (
+                    <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                      No messages yet.
                     </div>
-                    <p className="text-base leading-7">{message.translated}</p>
-                    <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                      Original: {message.original}
-                    </p>
-                  </article>
-                ))}
+                  )
+                ) : (
+                  sampleMessages.map((message) => (
+                    <article
+                      key={message.original}
+                      className="rounded-lg border border-border p-4"
+                    >
+                      <div className="mb-3 flex items-center justify-between gap-3">
+                        <div>
+                          <p className="text-sm font-medium">
+                            {message.author}
+                          </p>
+                          <p className="text-xs text-muted-foreground">
+                            {message.language}
+                          </p>
+                        </div>
+                      </div>
+                      <p className="text-base leading-7">
+                        {message.translated}
+                      </p>
+                      <p className="mt-2 text-sm leading-6 text-muted-foreground">
+                        Original: {message.original}
+                      </p>
+                    </article>
+                  ))
+                )}
               </div>
 
               <div className="border-t border-border p-4">
-                <div className="flex min-h-11 items-center rounded-lg border border-input bg-muted/60 px-3 text-sm text-muted-foreground">
-                  {authenticated
-                    ? "Message composer will be connected in the next slice."
-                    : "Message composer will appear after login."}
-                </div>
+                {authenticated ? (
+                  <form className="flex gap-2" onSubmit={handleSendMessage}>
+                    <Textarea
+                      aria-label="Message"
+                      className="min-h-11 resize-none"
+                      onChange={(event) => setComposerText(event.target.value)}
+                      placeholder="Type a public message"
+                      value={composerText}
+                    />
+                    <Button type="submit" className="h-11">
+                      Send
+                    </Button>
+                  </form>
+                ) : (
+                  <div className="flex min-h-11 items-center rounded-lg border border-input bg-muted/60 px-3 text-sm text-muted-foreground">
+                    Message composer will appear after login.
+                  </div>
+                )}
               </div>
             </div>
           </div>
@@ -251,6 +322,22 @@ function App() {
       </section>
     </main>
   );
+}
+
+function getConnectionLabel(status: string): string {
+  if (status === "open") {
+    return "Connected";
+  }
+
+  if (status === "connecting") {
+    return "Connecting";
+  }
+
+  if (status === "closed") {
+    return "Disconnected";
+  }
+
+  return "Session active";
 }
 
 function getLoginErrorMessage(error: unknown): string {
