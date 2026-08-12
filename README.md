@@ -8,3 +8,17 @@ Primary references:
 - Architecture decisions: `../chat-translation-docs/decisions/`
 - Specifications: `../chat-translation-docs/specifications/`
 - Plans: `../chat-translation-docs/plans/`
+
+## Local Docker Stack
+
+Create local environment files:
+
+```bash
+./scripts/setup-env.sh
+```
+
+Then edit `environment/backend.env` and run:
+
+```bash
+docker compose up --build
+```

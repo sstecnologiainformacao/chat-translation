@@ -1,4 +1,28 @@
-from app.repositories.base import MessageRepository, StoredMessage
+from app.repositories.base import MessageRepository, StoredMessage, StoredUser, UserRepository
+
+
+class InMemoryUserRepository(UserRepository):
+    def __init__(self) -> None:
+        self.storage: dict[str, StoredUser] = {}
+
+    async def create_user(
+        self, *, username: str, password_hash: str, language: str, nickname: str
+    ) -> bool:
+        normalized_username = username.lower()
+
+        if normalized_username in self.storage:
+            return False
+
+        self.storage[normalized_username] = StoredUser(
+            username=normalized_username,
+            password_hash=password_hash,
+            nickname=nickname,
+            language=language,
+        )
+        return True
+
+    async def get_user(self, *, username: str) -> StoredUser | None:
+        return self.storage.get(username.lower())
 
 
 class InMemoryMessageRepository(MessageRepository):

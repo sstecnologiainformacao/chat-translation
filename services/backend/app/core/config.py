@@ -6,8 +6,6 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(extra="ignore")
 
-    chat_user: str
-    chat_password: str
     jwt_secret: str
     jwt_expires_minutes: int = 60
     openai_api_key: str

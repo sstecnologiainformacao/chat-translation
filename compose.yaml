@@ -1,0 +1,38 @@
+services:
+  backend:
+    build:
+      context: ./services/backend
+      dockerfile: Dockerfile.dev
+    env_file:
+      - ./environment/backend.env
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./services/backend/app:/app/app
+      - ./services/backend/scripts:/app/scripts
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - import urllib.request; urllib.request.urlopen('http://localhost:8000/health')
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  frontend:
+    build:
+      context: .
+      dockerfile: services/frontend/Dockerfile.dev
+    environment:
+      VITE_API_URL: http://localhost:8000
+    ports:
+      - "5173:5173"
+    volumes:
+      - ./services/frontend/index.html:/app/services/frontend/index.html
+      - ./services/frontend/public:/app/services/frontend/public
+      - ./services/frontend/src:/app/services/frontend/src
+      - ./services/frontend/vite.config.ts:/app/services/frontend/vite.config.ts
+    depends_on:
+      backend:
+        condition: service_healthy
