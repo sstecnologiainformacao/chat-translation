@@ -1,6 +1,6 @@
 import { render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "@/App";
 import { useChat } from "@/features/chat/useChat";
@@ -36,6 +36,7 @@ const sendPublicMessage = vi.fn();
 describe("App", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    document.documentElement.classList.remove("dark");
     mockedGetAuthSession.mockReturnValue(null);
     mockedUseChat.mockReturnValue({
       closeReason: null,
@@ -43,6 +44,10 @@ describe("App", () => {
       sendPublicMessage,
       status: "open",
     });
+  });
+
+  afterEach(() => {
+    document.documentElement.classList.remove("dark");
   });
 
   it("renders the login form and public room preview", () => {
@@ -62,7 +67,7 @@ describe("App", () => {
     expect(screen.getByText("Live translation preview")).toBeInTheDocument();
   });
 
-  it("logs in, saves the token, and shows the connected state", async () => {
+  it("logs in, saves the token, and shows the full-page chat", async () => {
     mockedLogin.mockResolvedValue({ token: "jwt-token" });
     const user = userEvent.setup();
 
@@ -82,7 +87,7 @@ describe("App", () => {
     });
     expect(mockedSaveAuthToken).toHaveBeenCalledWith("jwt-token");
     expect(
-      await screen.findByRole("heading", { name: "Connected" }),
+      await screen.findByRole("heading", { name: "Public room" }),
     ).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Sign out" }),
@@ -125,8 +130,9 @@ describe("App", () => {
       "Portuguese",
     );
     expect(
-      screen.getByRole("heading", { name: "Connected" }),
+      screen.getByRole("heading", { name: "Public room" }),
     ).toBeInTheDocument();
+    expect(screen.getByText("joao · Portuguese")).toBeInTheDocument();
 
     await user.click(screen.getByRole("button", { name: "Sign out" }));
 
@@ -180,5 +186,19 @@ describe("App", () => {
 
     expect(sendPublicMessage).toHaveBeenCalledWith("Hello public room");
     expect(screen.getByLabelText("Message")).toHaveValue("");
+  });
+
+  it("toggles dark mode", async () => {
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "Toggle dark mode" }));
+
+    expect(document.documentElement.classList.contains("dark")).toBe(true);
+
+    await user.click(screen.getByRole("button", { name: "Toggle dark mode" }));
+
+    expect(document.documentElement.classList.contains("dark")).toBe(false);
   });
 });
