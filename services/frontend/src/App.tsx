@@ -17,8 +17,9 @@ import { MessageBubble } from "@/features/chat/MessageBubble";
 import { MessageInput } from "@/features/chat/MessageInput";
 import { MessageList } from "@/features/chat/MessageList";
 import { useChat } from "@/features/chat/useChat";
-import { ApiError, login } from "@/lib/api";
+import { ApiError, login, register } from "@/lib/api";
 import { clearAuthToken, getAuthSession, saveAuthToken } from "@/lib/auth";
+import { SUPPORTED_LANGUAGES } from "@/lib/languages";
 import {
   applyTheme,
   getNextTheme,
@@ -26,6 +27,8 @@ import {
   saveTheme,
 } from "@/lib/theme";
 import type { LoginRequest } from "@/types/auth";
+
+type AuthMode = "login" | "register";
 
 const sampleMessages = [
   {
@@ -44,8 +47,11 @@ const sampleMessages = [
 
 function App() {
   const [authSession, setAuthSession] = useState(() => getAuthSession());
+  const [authMode, setAuthMode] = useState<AuthMode>("login");
   const [composerText, setComposerText] = useState("");
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [registerError, setRegisterError] = useState<string | null>(null);
+  const [registerSuccess, setRegisterSuccess] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [theme, setTheme] = useState(() => getStoredTheme());
   const authToken = authSession?.token ?? null;
@@ -65,20 +71,46 @@ function App() {
     const payload: LoginRequest = {
       username: String(formData.get("username") ?? ""),
       password: String(formData.get("password") ?? ""),
-      nickname: String(formData.get("nickname") ?? ""),
-      language: String(formData.get("language") ?? ""),
     };
 
     try {
       const response = await login(payload);
       saveAuthToken(response.token);
-      setAuthSession({
-        language: payload.language,
-        nickname: payload.nickname,
-        token: response.token,
-      });
+      const nextSession = getAuthSession();
+
+      if (nextSession === null) {
+        setLoginError("Sign in failed.");
+        return;
+      }
+
+      setAuthSession(nextSession);
     } catch (error) {
       setLoginError(getLoginErrorMessage(error));
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
+  async function handleRegister(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    setRegisterError(null);
+    setRegisterSuccess(null);
+    setSubmitting(true);
+
+    const formData = new FormData(event.currentTarget);
+    const username = String(formData.get("username") ?? "");
+
+    try {
+      const response = await register({
+        username,
+        password: String(formData.get("password") ?? ""),
+        nickname: String(formData.get("nickname") ?? ""),
+        language: String(formData.get("language") ?? ""),
+      });
+      setRegisterSuccess(`${response.username} was created. Sign in now.`);
+      setAuthMode("login");
+    } catch (error) {
+      setRegisterError(getRegisterErrorMessage(error));
     } finally {
       setSubmitting(false);
     }
@@ -204,78 +236,159 @@ function App() {
               </div>
               <div>
                 <h1 className="text-3xl font-semibold tracking-tight">
-                  Join the room
+                  {authMode === "login" ? "Join the room" : "Create account"}
                 </h1>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  Sign in with the local shared credentials, choose a nickname,
-                  and type your preferred language.
+                  {authMode === "login"
+                    ? "Sign in with your local account."
+                    : "Create a local user with your @deploy.co email, profile, and password."}
                 </p>
               </div>
             </div>
 
-            <form
-              className="space-y-5"
-              aria-label="Login form"
-              onSubmit={handleLogin}
-            >
-              <div className="space-y-2">
-                <Label htmlFor="username">Username</Label>
-                <Input
-                  id="username"
-                  name="username"
-                  autoComplete="username"
-                  required
-                />
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="password">Password</Label>
-                <Input
-                  id="password"
-                  name="password"
-                  type="password"
-                  autoComplete="current-password"
-                  required
-                />
-              </div>
-
-              <div className="grid gap-5 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="nickname">Nickname</Label>
-                  <Input
-                    id="nickname"
-                    name="nickname"
-                    autoComplete="nickname"
-                    required
-                  />
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="language">Language</Label>
-                  <Input
-                    id="language"
-                    name="language"
-                    placeholder="Portuguese"
-                    required
-                  />
-                </div>
-              </div>
-
-              {loginError ? (
-                <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
-                  {loginError}
-                </p>
-              ) : null}
-
-              <Button
-                type="submit"
-                className="h-10 w-full"
-                disabled={submitting}
+            {authMode === "login" ? (
+              <form
+                className="space-y-5"
+                aria-label="Login form"
+                onSubmit={handleLogin}
               >
-                {submitting ? "Signing in" : "Continue"}
-                <ArrowRight className="size-4" aria-hidden="true" />
-              </Button>
-            </form>
+                <div className="space-y-2">
+                  <Label htmlFor="username">Deploy email</Label>
+                  <Input
+                    id="username"
+                    name="username"
+                    autoComplete="email"
+                    inputMode="email"
+                    placeholder="name@deploy.co"
+                    required
+                    type="email"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="password">Password</Label>
+                  <Input
+                    id="password"
+                    name="password"
+                    type="password"
+                    autoComplete="current-password"
+                    required
+                  />
+                </div>
+
+                {registerSuccess ? (
+                  <p className="rounded-lg border border-primary/30 bg-primary/10 px-3 py-2 text-sm text-primary">
+                    {registerSuccess}
+                  </p>
+                ) : null}
+
+                {loginError ? (
+                  <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                    {loginError}
+                  </p>
+                ) : null}
+
+                <Button
+                  type="submit"
+                  className="h-10 w-full"
+                  disabled={submitting}
+                >
+                  {submitting ? "Signing in" : "Continue"}
+                  <ArrowRight className="size-4" aria-hidden="true" />
+                </Button>
+              </form>
+            ) : (
+              <form
+                className="space-y-5"
+                aria-label="Create account form"
+                onSubmit={handleRegister}
+              >
+                <div className="space-y-2">
+                  <Label htmlFor="register-username">Deploy email</Label>
+                  <Input
+                    id="register-username"
+                    name="username"
+                    autoComplete="email"
+                    inputMode="email"
+                    placeholder="name@deploy.co"
+                    required
+                    type="email"
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="register-password">Password</Label>
+                  <Input
+                    id="register-password"
+                    name="password"
+                    type="password"
+                    autoComplete="new-password"
+                    minLength={8}
+                    required
+                  />
+                </div>
+
+                <div className="grid gap-5 sm:grid-cols-2">
+                  <div className="space-y-2">
+                    <Label htmlFor="register-nickname">Nickname</Label>
+                    <Input
+                      id="register-nickname"
+                      name="nickname"
+                      autoComplete="nickname"
+                      required
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="register-language">Language</Label>
+                    <select
+                      className="h-10 w-full rounded-md border border-input bg-background px-3 py-2 text-sm text-foreground shadow-xs outline-none transition-[color,box-shadow] focus-visible:border-ring focus-visible:ring-[3px] focus-visible:ring-ring/50 disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50"
+                      id="register-language"
+                      name="language"
+                      defaultValue=""
+                      required
+                    >
+                      <option value="" disabled>
+                        Select language
+                      </option>
+                      {SUPPORTED_LANGUAGES.map((language) => (
+                        <option key={language} value={language}>
+                          {language}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {registerError ? (
+                  <p className="rounded-lg border border-destructive/30 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                    {registerError}
+                  </p>
+                ) : null}
+
+                <Button
+                  type="submit"
+                  className="h-10 w-full"
+                  disabled={submitting}
+                >
+                  {submitting ? "Creating account" : "Create account"}
+                  <ArrowRight className="size-4" aria-hidden="true" />
+                </Button>
+              </form>
+            )}
+
+            <Button
+              type="button"
+              variant="outline"
+              className="mt-4 h-10 w-full"
+              onClick={() => {
+                setAuthMode(authMode === "login" ? "register" : "login");
+                setLoginError(null);
+                setRegisterError(null);
+              }}
+            >
+              {authMode === "login" ? "Create a new account" : "Back to sign in"}
+            </Button>
           </div>
 
           <p className="text-xs leading-5 text-muted-foreground">
@@ -340,6 +453,18 @@ function getLoginErrorMessage(error: unknown): string {
   }
 
   return "Sign in failed.";
+}
+
+function getRegisterErrorMessage(error: unknown): string {
+  if (error instanceof ApiError && error.detail === "user_already_exists") {
+    return "This user already exists.";
+  }
+
+  if (error instanceof ApiError && error.detail === "network_error") {
+    return "Could not connect to the server.";
+  }
+
+  return "Use a valid @deploy.co email and password.";
 }
 
 export default App;

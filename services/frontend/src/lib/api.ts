@@ -1,4 +1,9 @@
-import type { LoginRequest, LoginResponse } from "@/types/auth";
+import type {
+  LoginRequest,
+  LoginResponse,
+  RegisterRequest,
+  RegisterResponse,
+} from "@/types/auth";
 
 const DEFAULT_API_URL = "http://localhost:8000";
 
@@ -73,6 +78,34 @@ export async function login(
   }
 
   return (await response.json()) as LoginResponse;
+}
+
+export async function register(
+  payload: RegisterRequest,
+  { apiBaseUrl, fetcher = fetch }: RequestOptions = {},
+): Promise<RegisterResponse> {
+  let response: Response;
+
+  try {
+    response = await fetcher(buildApiUrl("/auth/register", apiBaseUrl), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify(payload),
+    });
+  } catch {
+    throw new ApiError({ status: 0, detail: "network_error" });
+  }
+
+  if (!response.ok) {
+    throw new ApiError({
+      status: response.status,
+      detail: await readErrorDetail(response),
+    });
+  }
+
+  return (await response.json()) as RegisterResponse;
 }
 
 async function readErrorDetail(response: Response): Promise<string> {

@@ -1,6 +1,22 @@
 from typing import Protocol
 
 
+class StoredUser:
+    def __init__(self, *, username: str, password_hash: str, language: str, nickname: str) -> None:
+        self.username = username
+        self.password_hash = password_hash
+        self.language = language
+        self.nickname = nickname
+
+
+class UserRepository(Protocol):
+    async def create_user(
+        self, *, username: str, password_hash: str, nickname: str, language: str
+    ) -> bool: ...
+
+    async def get_user(self, *, username: str) -> StoredUser | None: ...
+
+
 class StoredMessage:
     def __init__(
         self,

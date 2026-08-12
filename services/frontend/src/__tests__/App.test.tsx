@@ -4,7 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import App from "@/App";
 import { useChat } from "@/features/chat/useChat";
-import { ApiError, login } from "@/lib/api";
+import { ApiError, login, register } from "@/lib/api";
 import { clearAuthToken, getAuthSession, saveAuthToken } from "@/lib/auth";
 
 vi.mock("@/lib/api", async () => {
@@ -13,6 +13,7 @@ vi.mock("@/lib/api", async () => {
   return {
     ...actual,
     login: vi.fn(),
+    register: vi.fn(),
   };
 });
 
@@ -27,6 +28,7 @@ vi.mock("@/features/chat/useChat", () => ({
 }));
 
 const mockedLogin = vi.mocked(login);
+const mockedRegister = vi.mocked(register);
 const mockedClearAuthToken = vi.mocked(clearAuthToken);
 const mockedGetAuthSession = vi.mocked(getAuthSession);
 const mockedSaveAuthToken = vi.mocked(saveAuthToken);
@@ -56,10 +58,8 @@ describe("App", () => {
     expect(
       screen.getByRole("heading", { name: "Join the room" }),
     ).toBeInTheDocument();
-    expect(screen.getByLabelText("Username")).toBeInTheDocument();
+    expect(screen.getByLabelText("Deploy email")).toBeInTheDocument();
     expect(screen.getByLabelText("Password")).toBeInTheDocument();
-    expect(screen.getByLabelText("Nickname")).toBeInTheDocument();
-    expect(screen.getByLabelText("Language")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: /continue/i }),
     ).toBeInTheDocument();
@@ -69,21 +69,24 @@ describe("App", () => {
 
   it("logs in, saves the token, and shows the full-page chat", async () => {
     mockedLogin.mockResolvedValue({ token: "jwt-token" });
+    mockedGetAuthSession
+      .mockReturnValueOnce(null)
+      .mockReturnValueOnce({
+        language: "Portuguese",
+        nickname: "joao",
+        token: "jwt-token",
+      });
     const user = userEvent.setup();
 
     render(<App />);
 
-    await user.type(screen.getByLabelText("Username"), "local-user");
+    await user.type(screen.getByLabelText("Deploy email"), "joao@deploy.co");
     await user.type(screen.getByLabelText("Password"), "local-pass");
-    await user.type(screen.getByLabelText("Nickname"), "joao");
-    await user.type(screen.getByLabelText("Language"), "Portuguese");
     await user.click(screen.getByRole("button", { name: /continue/i }));
 
     expect(mockedLogin).toHaveBeenCalledWith({
-      username: "local-user",
+      username: "joao@deploy.co",
       password: "local-pass",
-      nickname: "joao",
-      language: "Portuguese",
     });
     expect(mockedSaveAuthToken).toHaveBeenCalledWith("jwt-token");
     expect(
@@ -103,16 +106,92 @@ describe("App", () => {
 
     render(<App />);
 
-    await user.type(screen.getByLabelText("Username"), "wrong-user");
+    await user.type(screen.getByLabelText("Deploy email"), "wrong@deploy.co");
     await user.type(screen.getByLabelText("Password"), "wrong-pass");
-    await user.type(screen.getByLabelText("Nickname"), "joao");
-    await user.type(screen.getByLabelText("Language"), "Portuguese");
     await user.click(screen.getByRole("button", { name: /continue/i }));
 
     expect(
       await screen.findByText("Invalid username or password."),
     ).toBeInTheDocument();
     expect(mockedSaveAuthToken).not.toHaveBeenCalled();
+  });
+
+  it("shows the create account form", async () => {
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await user.click(
+      screen.getByRole("button", { name: "Create a new account" }),
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "Create account" }),
+    ).toBeInTheDocument();
+    expect(screen.getByLabelText("Deploy email")).toBeInTheDocument();
+    expect(screen.getByLabelText("Password")).toBeInTheDocument();
+    expect(screen.getByLabelText("Nickname")).toBeInTheDocument();
+    expect(screen.getByLabelText("Language")).toBeInTheDocument();
+    expect(
+      screen.getByRole("option", { name: "Portuguese" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Create account" }),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("button", { name: "Back to sign in" }),
+    ).toBeInTheDocument();
+  });
+
+  it("creates a local user and returns to the login form", async () => {
+    mockedRegister.mockResolvedValue({ username: "joao@deploy.co" });
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await user.click(
+      screen.getByRole("button", { name: "Create a new account" }),
+    );
+    await user.type(screen.getByLabelText("Deploy email"), "joao@deploy.co");
+    await user.type(screen.getByLabelText("Password"), "local-pass");
+    await user.type(screen.getByLabelText("Nickname"), "joao");
+    await user.selectOptions(screen.getByLabelText("Language"), "Portuguese");
+    await user.click(screen.getByRole("button", { name: "Create account" }));
+
+    expect(mockedRegister).toHaveBeenCalledWith({
+      username: "joao@deploy.co",
+      password: "local-pass",
+      nickname: "joao",
+      language: "Portuguese",
+    });
+    expect(
+      await screen.findByText("joao@deploy.co was created. Sign in now."),
+    ).toBeInTheDocument();
+    expect(
+      screen.getByRole("heading", { name: "Join the room" }),
+    ).toBeInTheDocument();
+  });
+
+  it("shows a readable message when the user already exists", async () => {
+    mockedRegister.mockRejectedValue(
+      new ApiError({ status: 409, detail: "user_already_exists" }),
+    );
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await user.click(
+      screen.getByRole("button", { name: "Create a new account" }),
+    );
+    await user.type(screen.getByLabelText("Deploy email"), "joao@deploy.co");
+    await user.type(screen.getByLabelText("Password"), "local-pass");
+    await user.type(screen.getByLabelText("Nickname"), "joao");
+    await user.selectOptions(screen.getByLabelText("Language"), "Portuguese");
+    await user.click(screen.getByRole("button", { name: "Create account" }));
+
+    expect(
+      await screen.findByText("This user already exists."),
+    ).toBeInTheDocument();
   });
 
   it("starts connected when a token already exists and can sign out", async () => {

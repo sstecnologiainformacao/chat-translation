@@ -80,7 +80,7 @@ Implemented:
 - Vitest + React Testing Library setup.
 - Playwright setup for browser-level checks.
 - Login form wired to `POST /auth/login`.
-- `localStorage` JWT persistence with client-side profile decoding.
+- `sessionStorage` JWT persistence with client-side profile decoding.
 - Frontend message types that mirror the backend WebSocket contracts.
 - Public chat WebSocket hook and chat-specific orchestration.
 - Public room message list, message composer, and connection state components.

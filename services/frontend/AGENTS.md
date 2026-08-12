@@ -24,7 +24,7 @@ Rules loaded when Codex touches `services/frontend/`. Universal rules live in th
 - Build a minimalist modern chat interface.
 - Keep colors and visual style easy to change through theme tokens and shared styling conventions.
 - All UI text, file names, identifiers, comments, and tests are written in English.
-- Store the JWT in `localStorage` for MVP session persistence.
+- Store the JWT in `sessionStorage` for per-tab MVP session persistence.
 - Let users type their preferred language freely; do not force a fixed language list.
 - Public chat comes first. Private chat UI is deferred until the public flow is complete.
 - Render the translated text as the primary message content and the original text as secondary context.
@@ -52,7 +52,7 @@ Rules loaded when Codex touches `services/frontend/`. Universal rules live in th
 - HTTP login lives in `lib/api.ts`.
 - JWT storage helpers live in `lib/auth.ts`.
 - Backend WebSocket URL is derived from `VITE_API_URL`; do not duplicate URL-building logic in components.
-- Components should receive typed props and avoid reaching into `localStorage`, `fetch`, or `WebSocket` directly.
+- Components should receive typed props and avoid reaching into browser storage, `fetch`, or `WebSocket` directly.
 
 ## Design conventions
 
@@ -68,7 +68,7 @@ Rules loaded when Codex touches `services/frontend/`. Universal rules live in th
 - Tests live in `__tests__/` next to the code under test.
 - Add unit tests for new non-trivial helpers, hooks, and components.
 - Prefer behavior tests over implementation-detail tests.
-- Mock network boundaries for `fetch`, `localStorage`, and `WebSocket`.
+- Mock network boundaries for `fetch`, browser storage, and `WebSocket`.
 - Keep WebSocket reconnection tests out of the MVP unless reconnection logic is added.
 - Use Playwright for critical user flows that need a real browser.
 - Snapshot tests for layout are discouraged (brittle).

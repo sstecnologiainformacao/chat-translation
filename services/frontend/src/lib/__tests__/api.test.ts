@@ -5,11 +5,17 @@ import {
   buildWebSocketUrl,
   getApiBaseUrl,
   login,
+  register,
 } from "@/lib/api";
-import type { LoginRequest } from "@/types/auth";
+import type { LoginRequest, RegisterRequest } from "@/types/auth";
 
 const loginPayload: LoginRequest = {
   username: "local-user",
+  password: "local-pass",
+};
+
+const registerPayload: RegisterRequest = {
+  username: "joao@deploy.co",
   password: "local-pass",
   nickname: "joao",
   language: "Portuguese",
@@ -96,6 +102,52 @@ describe("api helpers", () => {
     ).rejects.toMatchObject({
       status: 0,
       detail: "network_error",
+    });
+  });
+
+  it("creates registered users", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ username: "joao@deploy.co" }), {
+        status: 201,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await expect(
+      register(registerPayload, {
+        apiBaseUrl: "http://127.0.0.1:8000",
+        fetcher,
+      }),
+    ).resolves.toEqual({ username: "joao@deploy.co" });
+
+    expect(fetcher).toHaveBeenCalledWith(
+      "http://127.0.0.1:8000/auth/register",
+      {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(registerPayload),
+      },
+    );
+  });
+
+  it("throws ApiError with backend detail when registration fails", async () => {
+    const fetcher = vi.fn().mockResolvedValue(
+      new Response(JSON.stringify({ detail: "user_already_exists" }), {
+        status: 409,
+        headers: { "Content-Type": "application/json" },
+      }),
+    );
+
+    await expect(
+      register(registerPayload, {
+        apiBaseUrl: "http://127.0.0.1:8000",
+        fetcher,
+      }),
+    ).rejects.toMatchObject({
+      status: 409,
+      detail: "user_already_exists",
     });
   });
 });

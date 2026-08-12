@@ -1,0 +1,25 @@
+export const SUPPORTED_LANGUAGES = [
+  "Arabic",
+  "Cantonese",
+  "Dutch",
+  "English",
+  "French",
+  "Gaelic",
+  "German",
+  "Greek",
+  "Hindi",
+  "Indonesian",
+  "Italian",
+  "Lithuanian",
+  "Malay",
+  "Malayalam",
+  "Mandarin Chinese",
+  "Persian",
+  "Portuguese",
+  "Romanian",
+  "Russian",
+  "Spanish",
+  "Swedish",
+] as const;
+
+export type SupportedLanguage = (typeof SUPPORTED_LANGUAGES)[number];

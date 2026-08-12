@@ -19,25 +19,25 @@ export type AuthSession = {
 
 export function saveAuthToken(
   token: string,
-  storage: TokenStorage = window.localStorage,
+  storage: TokenStorage = window.sessionStorage,
 ): void {
   storage.setItem(AUTH_TOKEN_STORAGE_KEY, token);
 }
 
 export function getAuthToken(
-  storage: TokenStorage = window.localStorage,
+  storage: TokenStorage = window.sessionStorage,
 ): string | null {
   return storage.getItem(AUTH_TOKEN_STORAGE_KEY);
 }
 
 export function clearAuthToken(
-  storage: TokenStorage = window.localStorage,
+  storage: TokenStorage = window.sessionStorage,
 ): void {
   storage.removeItem(AUTH_TOKEN_STORAGE_KEY);
 }
 
 export function hasAuthToken(
-  storage: TokenStorage = window.localStorage,
+  storage: TokenStorage = window.sessionStorage,
 ): boolean {
   return getAuthToken(storage) !== null;
 }
@@ -67,7 +67,7 @@ export function readAuthTokenPayload(token: string): AuthTokenPayload | null {
 }
 
 export function getAuthSession(
-  storage: TokenStorage = window.localStorage,
+  storage: TokenStorage = window.sessionStorage,
 ): AuthSession | null {
   const token = getAuthToken(storage);
 
