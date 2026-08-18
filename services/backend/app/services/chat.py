@@ -378,7 +378,8 @@ class ChatService:
         return await self._manager.connect(ws, nickname=nickname, language=language)
 
     async def join_room(self, connection: ActiveConnection, *, room: str) -> None:
-        await self._manager.join_room(connection, room=self.build_room_key(room))
+        room_key = self.build_room_key(room)
+        await self._manager.join_room(connection, room=room_key)
         messages: list[StoredMessage] = await self.repository.get_recent_messages(
             room=room, number_of_messages=5
         )
@@ -386,13 +387,31 @@ class ChatService:
         if len(messages) >= 1:
             messages_history: list[dict[str, object]] = []
             for message in messages:
+                translations = message.translations
+                if (
+                    connection.language != message.sender_language
+                    and connection.language not in translations
+                ):
+                    conversation: Conversation | None = self._get_room(room=room_key)
+                    languages: set[str] = set()
+                    languages.add(connection.language)
+                    if conversation is not None:
+                        result: TranslationResult | None = await self.translator.translate(
+                            text=message.original_text,
+                            source_language=message.sender_language,
+                            target_languages=languages,
+                            context=conversation.context,
+                        )
+                        if result is not None:
+                            translations = {**translations, **result.translations}
+
                 message_history: dict[str, object] = {
                     "type": "room_history",
                     "message_id": message.message_id,
                     "sender_nickname": message.sender_nickname,
                     "sender_language": message.sender_language,
                     "original_text": message.original_text,
-                    "translations": message.translations,
+                    "translations": translations,
                     "sent_at": message.sent_at,
                 }
                 messages_history.append(message_history)
