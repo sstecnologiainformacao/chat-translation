@@ -959,3 +959,48 @@ async def test_load_messages_from_repository_when_new_user_join_chat() -> None:
     assert message["message_id"] == "msg-1"
     assert message["original_text"] == "Hello"
     assert message["sender_nickname"] == "joao"
+
+
+async def test_new_joiner_receive_messages_properly_translated() -> None:
+    manager = ConnectionManager(max_connections=10)
+    repository = InMemoryMessageRepository()
+    service = ChatService(
+        manager=manager,
+        translator=FakeTranslator(context_update_summary="It's a summary"),
+        repository=repository,
+    )
+
+    ws_joao = DummyWebSocket()
+    ws_maria = DummyWebSocket()
+
+    joao = await service.connect(ws_joao, nickname="joao", language="Portuguese")
+    maria = await service.connect(ws_maria, nickname="maria", language="English")
+
+    await service.join_room(joao, room="general")
+    await service.join_room(maria, room="general")
+
+    await service.send_room_message(
+        joao, text="Olá", message_id="msg-1", sent_at="2026-06-01T12:00:00Z"
+    )
+
+    await service.send_room_message(
+        maria, text="Hello", message_id="msg-2", sent_at="2026-06-01T12:00:00Z"
+    )
+
+    ws_jose = DummyWebSocket()
+    jose = await service.connect(ws_jose, nickname="jose", language="Spanish")
+    await service.join_room(jose, room="general")
+
+    assert ws_jose.sent[0]["type"] == "room_history"
+    assert isinstance(ws_jose.sent[0]["messages"], list)
+    messages: list[dict[str, object]] = ws_jose.sent[0]["messages"]
+    message_joao: dict[str, object] | None = None
+    for message in messages:
+        if message["message_id"] == "msg-1":
+            message_joao = message
+
+    assert message_joao is not None
+    assert isinstance(message_joao["translations"], dict)
+    translations: dict[str, object] = message_joao["translations"]
+    assert "Spanish" in translations
+    assert translations["Spanish"] == "Portuguese -> Spanish + Olá"
