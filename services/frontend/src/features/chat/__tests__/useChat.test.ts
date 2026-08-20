@@ -81,6 +81,7 @@ describe("useChat", () => {
         senderLanguage: "Portuguese",
         senderNickname: "joao",
         sentAt: "2026-08-11T12:00:00Z",
+        translationStatus: "completed",
       },
       {
         displayText: "I am good",
@@ -89,6 +90,82 @@ describe("useChat", () => {
         senderLanguage: "English",
         senderNickname: "maria",
         sentAt: "2026-08-11T12:01:00Z",
+        translationStatus: "completed",
+      },
+    ]);
+  });
+
+  it("updates pending room messages when a translation update arrives", () => {
+    mockedUseWebSocket.mockReturnValue({
+      closeReason: null,
+      messages: [
+        {
+          type: "room_message",
+          message_id: "msg-1",
+          original_text: "Ola",
+          room: "general",
+          sender_language: "Portuguese",
+          sender_nickname: "joao",
+          sent_at: "2026-08-11T12:00:00Z",
+          translations: {},
+        },
+        {
+          type: "room_translation_update",
+          message_id: "msg-1",
+          room: "general",
+          translation_status: "completed",
+          translations: { English: "Hello" },
+        },
+      ] satisfies ServerMessage[],
+      sendJson,
+      status: "open",
+    });
+
+    const { result } = renderHook(() => useChat("jwt-token", "English"));
+
+    expect(result.current.messages).toEqual([
+      {
+        displayText: "Hello",
+        id: "msg-1",
+        originalText: "Ola",
+        senderLanguage: "Portuguese",
+        senderNickname: "joao",
+        sentAt: "2026-08-11T12:00:00Z",
+        translationStatus: "completed",
+      },
+    ]);
+  });
+
+  it("keeps the original text visible while translation is pending", () => {
+    mockedUseWebSocket.mockReturnValue({
+      closeReason: null,
+      messages: [
+        {
+          type: "room_message",
+          message_id: "msg-1",
+          original_text: "Ola",
+          room: "general",
+          sender_language: "Portuguese",
+          sender_nickname: "joao",
+          sent_at: "2026-08-11T12:00:00Z",
+          translations: {},
+        },
+      ] satisfies ServerMessage[],
+      sendJson,
+      status: "open",
+    });
+
+    const { result } = renderHook(() => useChat("jwt-token", "English"));
+
+    expect(result.current.messages).toEqual([
+      {
+        displayText: "Ola",
+        id: "msg-1",
+        originalText: "Ola",
+        senderLanguage: "Portuguese",
+        senderNickname: "joao",
+        sentAt: "2026-08-11T12:00:00Z",
+        translationStatus: "pending",
       },
     ]);
   });

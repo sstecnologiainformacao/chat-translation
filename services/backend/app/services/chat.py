@@ -285,6 +285,21 @@ class ChatService:
 
         try:
             if conversation is not None:
+                message: dict[str, object] = {
+                    "type": "room_message",
+                    "message_id": message_id,
+                    "room": "general",
+                    "sender_nickname": sender.nickname,
+                    "sender_language": sender.language,
+                    "original_text": text,
+                    "translations": {},
+                    "sent_at": sent_at,
+                }
+
+                original_message = Message(message=text, nickname=sender.nickname)
+                conversation.add_message(message=original_message)
+                await self._manager.broadcast_to_room(self._get_key_room_general(), message)
+
                 translations_result: TranslationResult | None = await self._translate_text(
                     sender=sender,
                     list_languages=list_languages,
@@ -302,20 +317,21 @@ class ChatService:
 
                 translations_dict = getattr(translations_result, "translations", {})
 
-                message: dict[str, object] = {
-                    "type": "room_message",
+                message_translated: dict[str, object] = {
+                    "type": "room_translation_update",
                     "message_id": message_id,
                     "room": "general",
                     "sender_nickname": sender.nickname,
                     "sender_language": sender.language,
                     "original_text": text,
                     "translations": translations_dict,
+                    "translation_status": "completed",
                     "sent_at": sent_at,
                 }
 
-                original_message = Message(message=text, nickname=sender.nickname)
-                conversation.add_message(message=original_message)
-                await self._manager.broadcast_to_room(self._get_key_room_general(), message)
+                await self._manager.broadcast_to_room(
+                    self._get_key_room_general(), message_translated
+                )
                 await self.repository.save_message(
                     message_id=message_id,
                     room="general",
@@ -326,13 +342,18 @@ class ChatService:
                     sent_at=sent_at,
                 )
         except TranslationError:
-            await self._manager.send_to(
-                sender,
-                {
-                    "type": "error",
-                    "reason": "translation_failed",
-                },
-            )
+            message_failed: dict[str, object] = {
+                "type": "room_translation_update",
+                "message_id": message_id,
+                "room": "general",
+                "sender_nickname": sender.nickname,
+                "sender_language": sender.language,
+                "original_text": text,
+                "translations": {},
+                "translation_status": "failed",
+                "sent_at": sent_at,
+            }
+            await self._manager.broadcast_to_room(self._get_key_room_general(), message_failed)
             return
 
     def _check_languages_to_translate(self, *, sender: ActiveConnection, room: str) -> set[str]:

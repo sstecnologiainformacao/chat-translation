@@ -25,7 +25,7 @@ Rules loaded when Codex touches `services/frontend/`. Universal rules live in th
 - Keep colors and visual style easy to change through theme tokens and shared styling conventions.
 - All UI text, file names, identifiers, comments, and tests are written in English.
 - Store the JWT in `sessionStorage` for per-tab MVP session persistence.
-- Let users type their preferred language freely; do not force a fixed language list.
+- Let users select their preferred language from the supported language list.
 - Public chat comes first. Private chat UI is deferred until the public flow is complete.
 - Render the translated text as the primary message content and the original text as secondary context.
 - The first screen is the usable app experience, not a marketing landing page.

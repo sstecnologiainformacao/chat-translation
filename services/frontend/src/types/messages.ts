@@ -23,6 +23,14 @@ export type ServerRoomMessage = {
   sent_at: string;
 };
 
+export type ServerRoomTranslationUpdateMessage = {
+  type: "room_translation_update";
+  message_id: string;
+  room: "general";
+  translations: Record<string, string>;
+  translation_status: "completed" | "failed";
+};
+
 export type ServerPrivateMessage = {
   type: "private_message";
   message_id: string;
@@ -69,6 +77,7 @@ export type ServerRoomHistoryMessage = {
 
 export type ServerMessage =
   | ServerRoomMessage
+  | ServerRoomTranslationUpdateMessage
   | ServerPrivateMessage
   | ServerSystemEventMessage
   | ServerErrorMessage
