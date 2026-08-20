@@ -7,6 +7,7 @@ from app.schemas.messages import (
     ServerErrorMessage,
     ServerPrivateMessage,
     ServerRoomMessage,
+    ServerRoomTranslationUpdateMessage,
     ServerSystemEventMessage,
 )
 
@@ -89,3 +90,27 @@ def test_server_error_message_restricts_reason() -> None:
 
     with pytest.raises(ValidationError):
         ServerErrorMessage.model_validate({"reason": "not_allowed"})
+
+
+def test_server_room_translation_update_message() -> None:
+    message = ServerRoomTranslationUpdateMessage(
+        message_id="msg-1", room="general", translations={}, translation_status="completed"
+    )
+
+    assert message.message_id == "msg-1"
+    assert message.room == "general"
+    assert message.translations == {}
+    assert message.translation_status == "completed"
+
+
+def test_server_room_translation_update_message_rejects_invalid_status() -> None:
+
+    with pytest.raises(ValidationError):
+        ServerRoomTranslationUpdateMessage.model_validate(
+            {
+                "message_id": "msg-1",
+                "room": "general",
+                "translations": {},
+                "translation_status": "pending",
+            }
+        )

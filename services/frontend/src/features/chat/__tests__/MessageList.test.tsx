@@ -11,6 +11,7 @@ const message: ChatMessage = {
   senderLanguage: "Portuguese",
   senderNickname: "joao",
   sentAt: "2026-08-11T12:00:00Z",
+  translationStatus: "completed",
 };
 
 describe("MessageList", () => {

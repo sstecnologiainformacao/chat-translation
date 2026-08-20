@@ -312,12 +312,24 @@ async def test_send_room_message_broadcasts_to_room_members() -> None:
         "sender_nickname": "joao",
         "sender_language": "Portuguese",
         "original_text": "Hello",
-        "translations": {"English": "Portuguese -> English + Hello"},
+        "translations": {},
         "sent_at": "2026-06-01T12:00:00Z",
     }
 
-    assert ws_joao.sent == [expected_message]
-    assert ws_maria.sent == [expected_message]
+    expected_message_update: dict[str, object] = {
+        "type": "room_translation_update",
+        "message_id": "msg-1",
+        "room": "general",
+        "sender_nickname": "joao",
+        "sender_language": "Portuguese",
+        "original_text": "Hello",
+        "translations": {"English": "Portuguese -> English + Hello"},
+        "sent_at": "2026-06-01T12:00:00Z",
+        "translation_status": "completed",
+    }
+
+    assert ws_joao.sent == [expected_message, expected_message_update]
+    assert ws_maria.sent == [expected_message, expected_message_update]
     assert ws_ana.sent == []
 
 
@@ -385,11 +397,23 @@ async def test_check_languages_to_translate() -> None:
         "sender_nickname": "joao",
         "sender_language": "Portuguese",
         "original_text": "Hello",
-        "translations": expected_translations,
+        "translations": {},
         "sent_at": "2026-06-01T12:00:00Z",
     }
 
-    assert ws_joao.sent == [expected_message]
+    expected_message_updated: dict[str, object] = {
+        "type": "room_translation_update",
+        "message_id": "msg-1",
+        "room": "general",
+        "sender_nickname": "joao",
+        "sender_language": "Portuguese",
+        "original_text": "Hello",
+        "translations": expected_translations,
+        "sent_at": "2026-06-01T12:00:00Z",
+        "translation_status": "completed",
+    }
+
+    assert ws_joao.sent == [expected_message, expected_message_updated]
 
 
 async def test_translate_message_when_chat_is_private_different_language() -> None:
@@ -562,12 +586,30 @@ async def test_translate_public_message_but_error() -> None:
     )
 
     expected_message: dict[str, object] = {
-        "type": "error",
-        "reason": "translation_failed",
+        "message_id": "msg-1",
+        "original_text": "Hello",
+        "room": "general",
+        "sender_language": "Portuguese",
+        "sender_nickname": "joao",
+        "sent_at": "2026-06-01T12:00:00Z",
+        "translations": {},
+        "type": "room_message",
     }
 
-    assert ws_joao.sent == [expected_message]
-    assert ws_maria.sent == []
+    expected_message_failed: dict[str, object] = {
+        "message_id": "msg-1",
+        "original_text": "Hello",
+        "room": "general",
+        "sender_language": "Portuguese",
+        "sender_nickname": "joao",
+        "sent_at": "2026-06-01T12:00:00Z",
+        "translation_status": "failed",
+        "translations": {},
+        "type": "room_translation_update",
+    }
+
+    assert ws_joao.sent == [expected_message, expected_message_failed]
+    assert ws_maria.sent == [expected_message, expected_message_failed]
 
 
 async def test_send_room_message_updates_room_context_after_successful_translation() -> None:
@@ -623,13 +665,31 @@ async def test_send_room_message_does_not_update_room_context_after_failed_trans
     conversation_after_send_message = manager.get_room(room="room:general")
 
     expected_message: dict[str, object] = {
-        "type": "error",
-        "reason": "translation_failed",
+        "message_id": "msg-1",
+        "original_text": "Hello",
+        "room": "general",
+        "sender_language": "Portuguese",
+        "sender_nickname": "joao",
+        "sent_at": "2026-06-01T12:00:00Z",
+        "translations": {},
+        "type": "room_message",
+    }
+
+    expected_message_failed: dict[str, object] = {
+        "message_id": "msg-1",
+        "original_text": "Hello",
+        "room": "general",
+        "sender_language": "Portuguese",
+        "sender_nickname": "joao",
+        "sent_at": "2026-06-01T12:00:00Z",
+        "translation_status": "failed",
+        "translations": {},
+        "type": "room_translation_update",
     }
 
     assert conversation_after_send_message.context.context == conversation.context.context
-    assert ws_joao.sent == [expected_message]
-    assert ws_maria.sent == []
+    assert ws_joao.sent == [expected_message, expected_message_failed]
+    assert ws_maria.sent == [expected_message, expected_message_failed]
 
 
 async def test_send_room_message_adds_original_message_to_room_context() -> None:
@@ -906,17 +966,37 @@ async def test_send_room_message_does_not_save_message_when_translation_fails() 
         joao, text="Hello", message_id="msg-1", sent_at="2026-06-01T12:00:00Z"
     )
 
-    expected_message: dict[str, object] = {
-        "type": "error",
-        "reason": "translation_failed",
-    }
-
     in_memory_messages: list[StoredMessage] = await repository.get_recent_messages(
         room="general", number_of_messages=1
     )
 
-    assert ws_joao.sent == [expected_message]
-    assert ws_maria.sent == []
+    expected_message = {
+        "message_id": "msg-1",
+        "original_text": "Hello",
+        "room": "general",
+        "sender_language": "Portuguese",
+        "sender_nickname": "joao",
+        "sent_at": "2026-06-01T12:00:00Z",
+        "translations": {},
+        "type": "room_message",
+    }
+
+    expected_message_failed = {
+        "message_id": "msg-1",
+        "original_text": "Hello",
+        "room": "general",
+        "sender_language": "Portuguese",
+        "sender_nickname": "joao",
+        "sent_at": "2026-06-01T12:00:00Z",
+        "translation_status": "failed",
+        "translations": {},
+        "type": "room_translation_update",
+    }
+
+    assert ws_maria.sent == [
+        expected_message,
+        expected_message_failed,
+    ]
     assert in_memory_messages == []
 
 
@@ -1004,3 +1084,31 @@ async def test_new_joiner_receive_messages_properly_translated() -> None:
     translations: dict[str, object] = message_joao["translations"]
     assert "Spanish" in translations
     assert translations["Spanish"] == "Portuguese -> Spanish + Olá"
+
+
+async def test_send_room_message_broadcasts_original_before_translation_update() -> None:
+    manager = ConnectionManager(max_connections=10)
+    repository = InMemoryMessageRepository()
+    service = ChatService(
+        manager=manager,
+        translator=FakeTranslator(context_update_summary="It's a summary"),
+        repository=repository,
+    )
+
+    ws_joao = DummyWebSocket()
+    ws_maria = DummyWebSocket()
+
+    joao = await service.connect(ws_joao, nickname="joao", language="Portuguese")
+    maria = await service.connect(ws_maria, nickname="maria", language="English")
+
+    await service.join_room(joao, room="general")
+    await service.join_room(maria, room="general")
+
+    await service.send_room_message(
+        joao, text="Olá", message_id="msg-1", sent_at="2026-06-01T12:00:00Z"
+    )
+
+    assert ws_joao.sent[0]["type"] == "room_message"
+    assert ws_maria.sent[0]["type"] == "room_message"
+    assert ws_joao.sent[1]["type"] == "room_translation_update"
+    assert ws_maria.sent[1]["type"] == "room_translation_update"

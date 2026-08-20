@@ -22,6 +22,7 @@ export function MessageList({ messages }: MessageListProps) {
       language={message.senderLanguage}
       originalText={message.originalText}
       text={message.displayText}
+      translationStatus={message.translationStatus}
     />
   ));
 }

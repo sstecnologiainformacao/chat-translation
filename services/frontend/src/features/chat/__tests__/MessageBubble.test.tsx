@@ -11,6 +11,7 @@ describe("MessageBubble", () => {
         language="Portuguese"
         originalText="Ola"
         text="Hello"
+        translationStatus="completed"
       />,
     );
 
@@ -18,5 +19,33 @@ describe("MessageBubble", () => {
     expect(screen.getByText("Portuguese")).toBeInTheDocument();
     expect(screen.getByText("Hello")).toBeInTheDocument();
     expect(screen.getByText("Original: Ola")).toBeInTheDocument();
+  });
+
+  it("renders a translation pending state", () => {
+    render(
+      <MessageBubble
+        author="joao"
+        language="Portuguese"
+        originalText="Ola"
+        text="Ola"
+        translationStatus="pending"
+      />,
+    );
+
+    expect(screen.getByLabelText("Translation pending")).toBeInTheDocument();
+  });
+
+  it("renders a translation failure state", () => {
+    render(
+      <MessageBubble
+        author="joao"
+        language="Portuguese"
+        originalText="Ola"
+        text="Ola"
+        translationStatus="failed"
+      />,
+    );
+
+    expect(screen.getByText("Translation unavailable.")).toBeInTheDocument();
   });
 });

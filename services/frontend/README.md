@@ -89,8 +89,23 @@ Implemented:
 Next:
 
 - Validate the full frontend and backend flow locally with two browser sessions.
-- Add Docker Compose orchestration for the local backend/frontend stack.
 - Add private chat UI after the public flow is verified end to end.
+
+Future UX backlog:
+
+- Group consecutive messages from the same sender.
+- Improve auto-scroll behavior.
+- Show message sending and failure states.
+- Improve the translated/original message display.
+- Show message timestamps.
+- Improve the empty chat state.
+- Make missing or failed translations clearer to users.
+- Polish dark mode, spacing, and chat bubble alignment.
+- Distinguish the current user's messages from other users' messages.
+- Evaluate WebSocket reconnection after the public MVP flow is stable.
+- Evaluate optimistic message delivery with a translation loading state.
+- Evaluate batched translation requests for multiple pending messages.
+- Evaluate a background queue for translation work after the local MVP is stable.
 
 ## Architecture Notes
 

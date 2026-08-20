@@ -61,6 +61,18 @@ class ServerErrorMessage(BaseModel):
     ]
 
 
+class ServerRoomTranslationUpdateMessage(BaseModel):
+    type: Literal["room_translation_update"] = "room_translation_update"
+    message_id: str
+    room: Literal["general"] = "general"
+    translations: dict[str, str] = Field(default_factory=dict)
+    translation_status: Literal["completed", "failed"]
+
+
 ServerMessage = (
-    ServerRoomMessage | ServerPrivateMessage | ServerSystemEventMessage | ServerErrorMessage
+    ServerRoomMessage
+    | ServerPrivateMessage
+    | ServerSystemEventMessage
+    | ServerErrorMessage
+    | ServerRoomTranslationUpdateMessage
 )

@@ -426,6 +426,7 @@ function App() {
                     language={message.language}
                     originalText={message.original}
                     text={message.translated}
+                    translationStatus="completed"
                   />
                 ))}
               </div>
