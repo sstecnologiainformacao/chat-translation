@@ -41,7 +41,8 @@ Rules loaded when Codex touches `services/backend/`. Universal rules live in the
 
 ## Conscious limitations of the MVP
 
-- In-memory persistence: history is lost on restart.
+- Message history remains in memory and is lost on restart.
+- Registered local users are being moved to PostgreSQL persistence per `../../../chat-translation-docs/decisions/0009-use-postgresql-for-local-user-persistence.md`.
 - Multiple simultaneous WebSocket connections are allowed for the learning MVP.
 - JWT not re-validated after handshake; expired tokens stay alive until disconnect.
 - No automatic reconnection.
@@ -49,6 +50,6 @@ Rules loaded when Codex touches `services/backend/`. Universal rules live in the
 ## Forbidden in backend code
 
 - Direct cloud SDK imports (`azure-*`, `boto3`, `google-cloud-*`, etc.).
-- SQLAlchemy / Alembic in MVP (deferred to Cycle 2 per `../../../chat-translation-docs/decisions/0001-defer-database-migrations.md`).
+- Broad SQLAlchemy / Alembic rewrites outside the accepted user-persistence slice.
 - Sync HTTP in the async request path.
 - Logging the contents of chat messages (privacy hygiene).
