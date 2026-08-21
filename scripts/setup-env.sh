@@ -15,7 +15,7 @@ copy_if_missing() {
 
   cp "$example" "$target"
   echo "created: $target"
-  echo "  Edit it to fill in CHAT_PASSWORD, JWT_SECRET, and OPENAI_API_KEY."
+  echo "  Edit it to fill in CHAT_PASSWORD, JWT_SECRET, DATABASE_URL, and OPENAI_API_KEY."
 }
 
 copy_if_missing "$ENV_DIR/backend.env.example" "$ENV_DIR/backend.env"
