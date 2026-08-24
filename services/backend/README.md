@@ -227,6 +227,26 @@ container restarts without introducing permanent chat history yet.
 
 See `../../../chat-translation-docs/decisions/0009-use-postgresql-for-local-user-persistence.md`.
 
+Resume checklist:
+
+1. Fill `app/db/base.py` with the SQLAlchemy declarative base used by future database
+   models.
+2. Fill `app/db/session.py` with the async SQLAlchemy engine, async session maker, and
+   session dependency/helper based on `settings.database_url`.
+3. Validate the connection layer without creating tables yet:
+
+   ```bash
+   uv run python -c "from app.db.base import Base; from app.db.session import async_session_maker; print(Base, async_session_maker)"
+   uv run mypy
+   uv run ruff check app/db
+   uv run pytest app/tests/test_auth.py app/tests/test_smoke.py -q
+   ```
+
+4. After the connection layer passes, create the user database model and the PostgreSQL
+   user repository in a separate small step.
+5. Do not persist message history, translation context, or chat delivery state in this
+   slice.
+
 ## Backend Layout
 
 See `AGENTS.md` for the full backend layering rules.
