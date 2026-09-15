@@ -3,7 +3,7 @@
 React + Vite + TypeScript frontend for the local-only chat translation MVP.
 
 The frontend is being built as a minimalist modern chat UI with shadcn/ui, TailwindCSS,
-local JWT persistence, and public chat first.
+session-scoped JWT persistence, local user registration, and public chat first.
 
 ## Requirements
 
@@ -79,8 +79,10 @@ Implemented:
 - shadcn/ui baseline components.
 - Vitest + React Testing Library setup.
 - Playwright setup for browser-level checks.
+- Register form wired to `POST /auth/register`.
 - Login form wired to `POST /auth/login`.
 - `sessionStorage` JWT persistence with client-side profile decoding.
+- Language selection from the supported language list during registration.
 - Frontend message types that mirror the backend WebSocket contracts.
 - Public chat WebSocket hook and chat-specific orchestration.
 - Public room message list, message composer, and connection state components.

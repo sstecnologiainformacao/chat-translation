@@ -3,10 +3,12 @@
 FastAPI backend for the local-only chat translation MVP.
 
 The service provides:
-- `POST /auth/login` for shared local authentication.
+- `POST /auth/register` for local user registration.
+- `POST /auth/login` for PostgreSQL-backed local authentication.
 - `GET /health` for a simple health check.
 - `WS /ws/chat` for authenticated public and private chat messages.
 - Translation through a `TranslationProvider` abstraction.
+- PostgreSQL-backed user persistence through SQLAlchemy and Alembic.
 - In-memory message history for the MVP.
 
 Additional backend documentation lives at `../../../chat-translation-docs/backend/backend-overview.md`.
@@ -31,8 +33,6 @@ Required variables:
 
 | Variable | Required | Default | Description |
 |---|---:|---|---|
-| `CHAT_USER` | Yes | none | Shared local login username. |
-| `CHAT_PASSWORD` | Yes | none | Shared local login password. |
 | `JWT_SECRET` | Yes | none | HS256 signing secret. Use at least 32 characters. |
 | `DATABASE_URL` | Yes | none | PostgreSQL connection URL for persistent local users. |
 | `OPENAI_API_KEY` | Yes | none | OpenAI API key. A placeholder is enough when `IS_DEVELOPMENT=true`. |
@@ -43,8 +43,6 @@ Required variables:
 Example local `.env`:
 
 ```bash
-CHAT_USER=local-user
-CHAT_PASSWORD=local-pass
 JWT_SECRET=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 JWT_EXPIRES_MINUTES=60
 DATABASE_URL=postgresql+asyncpg://chat_translation:chat_translation_password@postgres:5432/chat_translation
@@ -60,6 +58,17 @@ When running the backend outside Docker, use a host-reachable database URL such 
 When running through Compose, use the Compose service hostname `postgres`.
 
 ## Run Locally
+
+Recommended full-stack local run from the repository root:
+
+```bash
+docker compose up --build
+```
+
+The Compose stack starts PostgreSQL, runs Alembic migrations, then starts the backend and
+frontend. PostgreSQL data is stored in the `chat-translation_postgres-data` Docker volume.
+
+Manual backend-only run is also possible when PostgreSQL is already available.
 
 From `services/backend`:
 
@@ -102,7 +111,23 @@ Tool purpose:
 
 Automated tests set their own environment variables in `app/tests/conftest.py`.
 
-## Login Flow
+## Authentication Flow
+
+Register a local user:
+
+```bash
+curl -X POST http://127.0.0.1:8000/auth/register \
+  -H "Content-Type: application/json" \
+  -d '{
+    "username": "joao@deploy.co",
+    "password": "local-pass",
+    "nickname": "joao",
+    "language": "Portuguese"
+  }'
+```
+
+Registered usernames must use the `@deploy.co` email domain. Duplicate usernames return `409`
+with `user_already_exists`.
 
 Request a JWT:
 
@@ -110,10 +135,8 @@ Request a JWT:
 curl -X POST http://127.0.0.1:8000/auth/login \
   -H "Content-Type: application/json" \
   -d '{
-    "username": "local-user",
-    "password": "local-pass",
-    "nickname": "joao",
-    "language": "Portuguese"
+    "username": "joao@deploy.co",
+    "password": "local-pass"
   }'
 ```
 
@@ -219,33 +242,19 @@ Behavior:
 
 Permanent history is deferred to a later cycle.
 
-## User Persistence Plan
+## User Persistence
 
-Registered local users are moving from the in-memory user repository to PostgreSQL-backed
-persistence. This slice is limited to user accounts so local testing survives backend and
-container restarts without introducing permanent chat history yet.
+Registered local users are persisted in PostgreSQL through `SqlAlchemyUserRepository`.
+Passwords are stored as hashes, and login reads the user record from the database before issuing
+the JWT.
+
+Alembic owns database migrations. In Docker Compose, the `migrations` service runs
+`uv run alembic upgrade head` before the backend starts.
+
+This persistence slice is intentionally limited to user accounts. Message history, translation
+context, and chat delivery state remain in memory.
 
 See `../../../chat-translation-docs/decisions/0009-use-postgresql-for-local-user-persistence.md`.
-
-Resume checklist:
-
-1. Fill `app/db/base.py` with the SQLAlchemy declarative base used by future database
-   models.
-2. Fill `app/db/session.py` with the async SQLAlchemy engine, async session maker, and
-   session dependency/helper based on `settings.database_url`.
-3. Validate the connection layer without creating tables yet:
-
-   ```bash
-   uv run python -c "from app.db.base import Base; from app.db.session import async_session_maker; print(Base, async_session_maker)"
-   uv run mypy
-   uv run ruff check app/db
-   uv run pytest app/tests/test_auth.py app/tests/test_smoke.py -q
-   ```
-
-4. After the connection layer passes, create the user database model and the PostgreSQL
-   user repository in a separate small step.
-5. Do not persist message history, translation context, or chat delivery state in this
-   slice.
 
 ## Backend Layout
 

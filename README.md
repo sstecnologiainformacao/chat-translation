@@ -25,6 +25,7 @@ docker compose up --build
 
 The local stack starts:
 - `postgres` for persistent local user storage.
+- `migrations` for applying Alembic database migrations before the backend starts.
 - `backend` for FastAPI and WebSocket chat.
 - `frontend` for the Vite app.
 
