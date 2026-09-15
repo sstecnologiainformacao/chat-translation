@@ -40,6 +40,20 @@ services:
       timeout: 3s
       retries: 5
     depends_on:
+      migrations:
+        condition: service_completed_successfully
+
+  migrations:
+    build:
+      context: ./services/backend
+      dockerfile: Dockerfile.dev
+    env_file:
+      - ./environment/backend.env
+    command: ["uv", "run", "alembic", "upgrade", "head"]
+    volumes:
+      - ./services/backend/alembic:/app/alembic
+      - ./services/backend/alembic.ini:/app/alembic.ini
+    depends_on:
       postgres:
         condition: service_healthy
 
