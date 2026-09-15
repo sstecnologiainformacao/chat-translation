@@ -12,6 +12,25 @@ permissions:
 jobs:
   backend:
     runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16.4-alpine
+        env:
+          POSTGRES_DB: chat_translation
+          POSTGRES_USER: chat_translation
+          POSTGRES_PASSWORD: chat_translation_password
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U chat_translation -d chat_translation"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 5
+    env:
+      JWT_SECRET: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      OPENAI_API_KEY: sk-test
+      IS_DEVELOPMENT: "true"
+      DATABASE_URL: postgresql+asyncpg://chat_translation:chat_translation_password@localhost:5432/chat_translation
     defaults:
       run:
         working-directory: services/backend
@@ -26,6 +45,7 @@ jobs:
       - run: uv run ruff check .
       - run: uv run ruff format --check .
       - run: uv run mypy
+      - run: uv run alembic upgrade head
       - run: uv run pytest -v
 
   frontend:
