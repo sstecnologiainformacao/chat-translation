@@ -19,6 +19,11 @@ export function MessageList({ messages }: MessageListProps) {
     <MessageBubble
       key={message.id}
       author={message.senderNickname}
+      conversationLabel={
+        message.conversationKind === "private"
+          ? `Private to ${message.recipientNickname}`
+          : null
+      }
       language={message.senderLanguage}
       originalText={message.originalText}
       text={message.displayText}

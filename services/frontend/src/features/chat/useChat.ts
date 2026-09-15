@@ -5,16 +5,20 @@ import { useWebSocket, type WebSocketStatus } from "@/lib/useWebSocket";
 import type {
   RoomHistoryItem,
   ServerMessage,
+  ServerPrivateMessage,
   ServerRoomMessage,
   ServerRoomTranslationUpdateMessage,
 } from "@/types/messages";
 
 type TranslationStatus = "completed" | "failed" | "pending";
+type ConversationKind = "private" | "public";
 
 export type ChatMessage = {
+  conversationKind: ConversationKind;
   displayText: string;
   id: string;
   originalText: string;
+  recipientNickname: string | null;
   senderLanguage: string;
   senderNickname: string;
   sentAt: string;
@@ -28,6 +32,7 @@ type ChatMessageState = ChatMessage & {
 export type UseChatResult = {
   closeReason: string | null;
   messages: ChatMessage[];
+  sendPrivateMessage: (recipientNickname: string, text: string) => boolean;
   sendPublicMessage: (text: string) => boolean;
   status: WebSocketStatus;
 };
@@ -75,6 +80,17 @@ export function useChat(
           continue;
         }
 
+        if (message.type === "private_message") {
+          const chatMessage = toChatMessage(
+            message,
+            preferredLanguage,
+            "completed",
+          );
+          messageIndexes.set(chatMessage.id, orderedMessages.length);
+          orderedMessages.push(chatMessage);
+          continue;
+        }
+
         if (message.type === "room_translation_update") {
           const existingIndex = messageIndexes.get(message.message_id);
 
@@ -112,9 +128,28 @@ export function useChat(
     [sendJson],
   );
 
+  const sendPrivateMessage = useCallback(
+    (recipientNickname: string, text: string) => {
+      const trimmedRecipient = recipientNickname.trim();
+      const trimmedText = text.trim();
+
+      if (!trimmedRecipient || !trimmedText) {
+        return false;
+      }
+
+      return sendJson({
+        type: "private_message",
+        recipient_nickname: trimmedRecipient,
+        text: trimmedText,
+      });
+    },
+    [sendJson],
+  );
+
   return {
     closeReason,
     messages,
+    sendPrivateMessage,
     sendPublicMessage,
     status,
   };
@@ -122,9 +157,11 @@ export function useChat(
 
 function toPublicChatMessage(message: ChatMessageState): ChatMessage {
   return {
+    conversationKind: message.conversationKind,
     displayText: message.displayText,
     id: message.id,
     originalText: message.originalText,
+    recipientNickname: message.recipientNickname,
     senderLanguage: message.senderLanguage,
     senderNickname: message.senderNickname,
     sentAt: message.sentAt,
@@ -133,14 +170,17 @@ function toPublicChatMessage(message: ChatMessageState): ChatMessage {
 }
 
 function toChatMessage(
-  message: RoomHistoryItem | ServerRoomMessage,
+  message: RoomHistoryItem | ServerPrivateMessage | ServerRoomMessage,
   preferredLanguage: string | null,
   translationStatus: TranslationStatus,
 ): ChatMessageState {
   return {
+    conversationKind: getConversationKind(message),
     displayText: getDisplayText(message, preferredLanguage),
     id: message.message_id,
     originalText: message.original_text,
+    recipientNickname:
+      "recipient_nickname" in message ? message.recipient_nickname : null,
     senderLanguage: message.sender_language,
     senderNickname: message.sender_nickname,
     sentAt: message.sent_at,
@@ -150,7 +190,7 @@ function toChatMessage(
 }
 
 function getDisplayText(
-  message: RoomHistoryItem | ServerRoomMessage,
+  message: RoomHistoryItem | ServerPrivateMessage | ServerRoomMessage,
   preferredLanguage: string | null,
 ): string {
   if (preferredLanguage !== null) {
@@ -158,6 +198,12 @@ function getDisplayText(
   }
 
   return Object.values(message.translations)[0] ?? message.original_text;
+}
+
+function getConversationKind(
+  message: RoomHistoryItem | ServerPrivateMessage | ServerRoomMessage,
+): ConversationKind {
+  return "recipient_nickname" in message ? "private" : "public";
 }
 
 function getDisplayTextFromParts(

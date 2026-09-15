@@ -75,18 +75,22 @@ describe("useChat", () => {
 
     expect(result.current.messages).toEqual([
       {
+        conversationKind: "public",
         displayText: "Hello",
         id: "msg-1",
         originalText: "Ola",
+        recipientNickname: null,
         senderLanguage: "Portuguese",
         senderNickname: "joao",
         sentAt: "2026-08-11T12:00:00Z",
         translationStatus: "completed",
       },
       {
+        conversationKind: "public",
         displayText: "I am good",
         id: "msg-2",
         originalText: "I am good",
+        recipientNickname: null,
         senderLanguage: "English",
         senderNickname: "maria",
         sentAt: "2026-08-11T12:01:00Z",
@@ -125,9 +129,11 @@ describe("useChat", () => {
 
     expect(result.current.messages).toEqual([
       {
+        conversationKind: "public",
         displayText: "Hello",
         id: "msg-1",
         originalText: "Ola",
+        recipientNickname: null,
         senderLanguage: "Portuguese",
         senderNickname: "joao",
         sentAt: "2026-08-11T12:00:00Z",
@@ -159,13 +165,51 @@ describe("useChat", () => {
 
     expect(result.current.messages).toEqual([
       {
+        conversationKind: "public",
         displayText: "Ola",
         id: "msg-1",
         originalText: "Ola",
+        recipientNickname: null,
         senderLanguage: "Portuguese",
         senderNickname: "joao",
         sentAt: "2026-08-11T12:00:00Z",
         translationStatus: "pending",
+      },
+    ]);
+  });
+
+  it("maps private messages to display messages", () => {
+    mockedUseWebSocket.mockReturnValue({
+      closeReason: null,
+      messages: [
+        {
+          type: "private_message",
+          message_id: "msg-1",
+          original_text: "Ola",
+          recipient_nickname: "maria",
+          sender_language: "Portuguese",
+          sender_nickname: "joao",
+          sent_at: "2026-08-11T12:00:00Z",
+          translations: { English: "Hello" },
+        },
+      ] satisfies ServerMessage[],
+      sendJson,
+      status: "open",
+    });
+
+    const { result } = renderHook(() => useChat("jwt-token", "English"));
+
+    expect(result.current.messages).toEqual([
+      {
+        conversationKind: "private",
+        displayText: "Hello",
+        id: "msg-1",
+        originalText: "Ola",
+        recipientNickname: "maria",
+        senderLanguage: "Portuguese",
+        senderNickname: "joao",
+        sentAt: "2026-08-11T12:00:00Z",
+        translationStatus: "completed",
       },
     ]);
   });
@@ -179,6 +223,27 @@ describe("useChat", () => {
       room: "general",
       text: "Hello",
     });
+  });
+
+  it("sends trimmed private messages", () => {
+    const { result } = renderHook(() => useChat("jwt-token", "English"));
+
+    expect(result.current.sendPrivateMessage("  maria  ", "  Hello  ")).toBe(
+      true,
+    );
+    expect(sendJson).toHaveBeenCalledWith({
+      type: "private_message",
+      recipient_nickname: "maria",
+      text: "Hello",
+    });
+  });
+
+  it("does not send private messages without recipient or text", () => {
+    const { result } = renderHook(() => useChat("jwt-token", "English"));
+
+    expect(result.current.sendPrivateMessage("   ", "Hello")).toBe(false);
+    expect(result.current.sendPrivateMessage("maria", "   ")).toBe(false);
+    expect(sendJson).not.toHaveBeenCalled();
   });
 
   it("does not send empty messages", () => {

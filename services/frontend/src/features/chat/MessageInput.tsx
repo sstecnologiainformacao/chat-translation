@@ -6,10 +6,16 @@ import { Textarea } from "@/components/ui/textarea";
 type MessageInputProps = {
   onChange: (value: string) => void;
   onSubmit: () => void;
+  placeholder?: string;
   value: string;
 };
 
-export function MessageInput({ onChange, onSubmit, value }: MessageInputProps) {
+export function MessageInput({
+  onChange,
+  onSubmit,
+  placeholder = "Type a public message",
+  value,
+}: MessageInputProps) {
   function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     onSubmit();
@@ -21,7 +27,7 @@ export function MessageInput({ onChange, onSubmit, value }: MessageInputProps) {
         aria-label="Message"
         className="min-h-11 resize-none"
         onChange={(event) => onChange(event.target.value)}
-        placeholder="Type a public message"
+        placeholder={placeholder}
         value={value}
       />
       <Button type="submit" className="h-11">

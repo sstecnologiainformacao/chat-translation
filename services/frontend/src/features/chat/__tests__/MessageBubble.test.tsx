@@ -48,4 +48,19 @@ describe("MessageBubble", () => {
 
     expect(screen.getByText("Translation unavailable.")).toBeInTheDocument();
   });
+
+  it("renders a conversation label when provided", () => {
+    render(
+      <MessageBubble
+        author="joao"
+        conversationLabel="Private to maria"
+        language="Portuguese"
+        originalText="Ola"
+        text="Hello"
+        translationStatus="completed"
+      />,
+    );
+
+    expect(screen.getByText("Private to maria")).toBeInTheDocument();
+  });
 });

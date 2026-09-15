@@ -33,6 +33,7 @@ const mockedClearAuthToken = vi.mocked(clearAuthToken);
 const mockedGetAuthSession = vi.mocked(getAuthSession);
 const mockedSaveAuthToken = vi.mocked(saveAuthToken);
 const mockedUseChat = vi.mocked(useChat);
+const sendPrivateMessage = vi.fn();
 const sendPublicMessage = vi.fn();
 
 describe("App", () => {
@@ -43,6 +44,7 @@ describe("App", () => {
     mockedUseChat.mockReturnValue({
       closeReason: null,
       messages: [],
+      sendPrivateMessage,
       sendPublicMessage,
       status: "open",
     });
@@ -231,15 +233,18 @@ describe("App", () => {
       closeReason: null,
       messages: [
         {
+          conversationKind: "public",
           displayText: "Hello",
           id: "msg-1",
           originalText: "Ola",
+          recipientNickname: null,
           senderLanguage: "Portuguese",
           senderNickname: "joao",
           sentAt: "2026-08-11T12:00:00Z",
           translationStatus: "completed",
         },
       ],
+      sendPrivateMessage,
       sendPublicMessage,
       status: "open",
     });
@@ -265,6 +270,26 @@ describe("App", () => {
     await user.click(screen.getByRole("button", { name: "Send" }));
 
     expect(sendPublicMessage).toHaveBeenCalledWith("Hello public room");
+    expect(screen.getByLabelText("Message")).toHaveValue("");
+  });
+
+  it("sends private messages from the composer", async () => {
+    mockedGetAuthSession.mockReturnValue({
+      language: "Portuguese",
+      nickname: "joao",
+      token: "stored-token",
+    });
+    sendPrivateMessage.mockReturnValue(true);
+    const user = userEvent.setup();
+
+    render(<App />);
+
+    await user.click(screen.getByRole("button", { name: "Private" }));
+    await user.type(screen.getByLabelText("Recipient nickname"), "maria");
+    await user.type(screen.getByLabelText("Message"), "Hello Maria");
+    await user.click(screen.getByRole("button", { name: "Send" }));
+
+    expect(sendPrivateMessage).toHaveBeenCalledWith("maria", "Hello Maria");
     expect(screen.getByLabelText("Message")).toHaveValue("");
   });
 

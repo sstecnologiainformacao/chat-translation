@@ -29,6 +29,7 @@ import {
 import type { LoginRequest } from "@/types/auth";
 
 type AuthMode = "login" | "register";
+type DeliveryMode = "private" | "public";
 
 const sampleMessages = [
   {
@@ -49,7 +50,9 @@ function App() {
   const [authSession, setAuthSession] = useState(() => getAuthSession());
   const [authMode, setAuthMode] = useState<AuthMode>("login");
   const [composerText, setComposerText] = useState("");
+  const [deliveryMode, setDeliveryMode] = useState<DeliveryMode>("public");
   const [loginError, setLoginError] = useState<string | null>(null);
+  const [privateRecipient, setPrivateRecipient] = useState("");
   const [registerError, setRegisterError] = useState<string | null>(null);
   const [registerSuccess, setRegisterSuccess] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -120,11 +123,18 @@ function App() {
     clearAuthToken();
     setAuthSession(null);
     setComposerText("");
+    setDeliveryMode("public");
     setLoginError(null);
+    setPrivateRecipient("");
   }
 
   function handleSendMessage() {
-    if (chat.sendPublicMessage(composerText)) {
+    const sent =
+      deliveryMode === "private"
+        ? chat.sendPrivateMessage(privateRecipient, composerText)
+        : chat.sendPublicMessage(composerText);
+
+    if (sent) {
       setComposerText("");
     }
   }
@@ -186,9 +196,45 @@ function App() {
         </section>
 
         <footer className="shrink-0 border-t border-border bg-background/95 px-4 py-3 backdrop-blur sm:px-6">
-          <div className="mx-auto w-full max-w-3xl">
+          <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
+            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+              <div className="flex shrink-0 rounded-lg border border-border p-1">
+                <Button
+                  type="button"
+                  variant={deliveryMode === "public" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setDeliveryMode("public")}
+                >
+                  Public
+                </Button>
+                <Button
+                  type="button"
+                  variant={deliveryMode === "private" ? "default" : "ghost"}
+                  size="sm"
+                  onClick={() => setDeliveryMode("private")}
+                >
+                  Private
+                </Button>
+              </div>
+              {deliveryMode === "private" ? (
+                <div className="min-w-0 flex-1 space-y-1">
+                  <Label htmlFor="private-recipient">Recipient nickname</Label>
+                  <Input
+                    id="private-recipient"
+                    onChange={(event) => setPrivateRecipient(event.target.value)}
+                    placeholder="maria"
+                    value={privateRecipient}
+                  />
+                </div>
+              ) : null}
+            </div>
             <MessageInput
               onChange={setComposerText}
+              placeholder={
+                deliveryMode === "private"
+                  ? "Type a private message"
+                  : "Type a public message"
+              }
               onSubmit={handleSendMessage}
               value={composerText}
             />

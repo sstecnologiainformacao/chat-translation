@@ -1,5 +1,6 @@
 type MessageBubbleProps = {
   author: string;
+  conversationLabel?: string | null;
   language: string;
   originalText: string;
   text: string;
@@ -8,6 +9,7 @@ type MessageBubbleProps = {
 
 export function MessageBubble({
   author,
+  conversationLabel = null,
   language,
   originalText,
   text,
@@ -20,6 +22,11 @@ export function MessageBubble({
           <p className="text-sm font-medium">{author}</p>
           <p className="text-xs text-muted-foreground">{language}</p>
         </div>
+        {conversationLabel ? (
+          <span className="shrink-0 rounded-full border border-border px-2 py-1 text-xs text-muted-foreground">
+            {conversationLabel}
+          </span>
+        ) : null}
       </div>
       <p className="text-base leading-7">{text}</p>
       {translationStatus === "pending" ? (
