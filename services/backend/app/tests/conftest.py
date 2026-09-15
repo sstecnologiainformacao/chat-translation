@@ -15,7 +15,7 @@ def _set_test_env(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.setenv("IS_DEVELOPMENT", "True")
     monkeypatch.setenv(
         "DATABASE_URL",
-        "postgresql+asyncpg://test_user:test_password@localhost:5432/test_chat_translation",
+        "postgresql+asyncpg://chat_translation:chat_translation_password@localhost:5432/chat_translation",
     )
     # Reset the cached Settings between tests
     from app.core.config import get_settings

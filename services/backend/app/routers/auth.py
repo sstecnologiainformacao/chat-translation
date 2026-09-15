@@ -1,5 +1,8 @@
-from fastapi import APIRouter, HTTPException, Request, status
+from typing import Annotated
 
+from fastapi import APIRouter, Depends, HTTPException, status
+
+from app.dependencies.auth import get_auth_service
 from app.schemas.auth import LoginRequest, LoginResponse, RegisterRequest, RegisterResponse
 from app.services.auth import AuthService, InvalidCredentialsError, UserAlreadyExistsError
 
@@ -7,8 +10,10 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 
 @router.post("/login", response_model=LoginResponse)
-async def login(payload: LoginRequest, request: Request) -> LoginResponse:
-    auth_service: AuthService = request.app.state.auth_service
+async def login(
+    payload: LoginRequest,
+    auth_service: Annotated[AuthService, Depends(get_auth_service)],
+) -> LoginResponse:
 
     try:
         token = await auth_service.login(
@@ -25,8 +30,10 @@ async def login(payload: LoginRequest, request: Request) -> LoginResponse:
 
 
 @router.post("/register", response_model=RegisterResponse, status_code=status.HTTP_201_CREATED)
-async def register(payload: RegisterRequest, request: Request) -> RegisterResponse:
-    auth_service: AuthService = request.app.state.auth_service
+async def register(
+    payload: RegisterRequest,
+    auth_service: Annotated[AuthService, Depends(get_auth_service)],
+) -> RegisterResponse:
 
     try:
         username = await auth_service.register(

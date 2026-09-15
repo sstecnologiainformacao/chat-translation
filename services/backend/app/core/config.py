@@ -16,5 +16,4 @@ class Settings(BaseSettings):
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    # BaseSettings loads required fields from environment variables at runtime.
     return Settings()  # type: ignore[call-arg]

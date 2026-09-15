@@ -27,6 +27,8 @@ services:
       - "8000:8000"
     volumes:
       - ./services/backend/app:/app/app
+      - ./services/backend/alembic:/app/alembic
+      - ./services/backend/alembic.ini:/app/alembic.ini
       - ./services/backend/scripts:/app/scripts
     healthcheck:
       test:
