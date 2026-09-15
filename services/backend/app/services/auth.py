@@ -12,8 +12,8 @@ class UserAlreadyExistsError(Exception):
 
 
 class AuthService:
-    def __init__(self, *, user_repository: UserRepository) -> None:
-        self._user_repository = user_repository
+    def __init__(self, *, user_repository: UserRepository):
+        self._user_repository: UserRepository = user_repository
 
     async def login(
         self,

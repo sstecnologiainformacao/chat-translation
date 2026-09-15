@@ -9,6 +9,9 @@ dependencies = [
     "pydantic-settings>=2.5.0",
     "pyjwt[crypto]>=2.9.0",
     "openai>=1.0.0",
+    "sqlalchemy[asyncio]>=2.0.52",
+    "asyncpg>=0.31.0",
+    "alembic>=1.19.1",
 ]
 
 [dependency-groups]
@@ -26,6 +29,9 @@ package = false
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
 testpaths = ["app/tests"]
+markers = [
+    "integration: tests that call external services and are skipped by default",
+]
 
 [tool.ruff]
 line-length = 100

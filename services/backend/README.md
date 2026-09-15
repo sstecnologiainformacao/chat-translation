@@ -34,6 +34,7 @@ Required variables:
 | `CHAT_USER` | Yes | none | Shared local login username. |
 | `CHAT_PASSWORD` | Yes | none | Shared local login password. |
 | `JWT_SECRET` | Yes | none | HS256 signing secret. Use at least 32 characters. |
+| `DATABASE_URL` | Yes | none | PostgreSQL connection URL for persistent local users. |
 | `OPENAI_API_KEY` | Yes | none | OpenAI API key. A placeholder is enough when `IS_DEVELOPMENT=true`. |
 | `IS_DEVELOPMENT` | Yes | none | `true` uses `FakeTranslator`; `false` uses `OpenAITranslator`. |
 | `JWT_EXPIRES_MINUTES` | No | `60` | JWT lifetime in minutes. |
@@ -46,12 +47,17 @@ CHAT_USER=local-user
 CHAT_PASSWORD=local-pass
 JWT_SECRET=aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 JWT_EXPIRES_MINUTES=60
+DATABASE_URL=postgresql+asyncpg://chat_translation:chat_translation_password@postgres:5432/chat_translation
 OPENAI_API_KEY=sk-local-placeholder
 OPENAI_MODEL=gpt-5.4-mini
 IS_DEVELOPMENT=true
 ```
 
 Never commit real secrets.
+
+When running the backend outside Docker, use a host-reachable database URL such as
+`postgresql+asyncpg://chat_translation:chat_translation_password@localhost:5432/chat_translation`.
+When running through Compose, use the Compose service hostname `postgres`.
 
 ## Run Locally
 
@@ -212,6 +218,34 @@ Behavior:
 - Server restarts clear all history by design.
 
 Permanent history is deferred to a later cycle.
+
+## User Persistence Plan
+
+Registered local users are moving from the in-memory user repository to PostgreSQL-backed
+persistence. This slice is limited to user accounts so local testing survives backend and
+container restarts without introducing permanent chat history yet.
+
+See `../../../chat-translation-docs/decisions/0009-use-postgresql-for-local-user-persistence.md`.
+
+Resume checklist:
+
+1. Fill `app/db/base.py` with the SQLAlchemy declarative base used by future database
+   models.
+2. Fill `app/db/session.py` with the async SQLAlchemy engine, async session maker, and
+   session dependency/helper based on `settings.database_url`.
+3. Validate the connection layer without creating tables yet:
+
+   ```bash
+   uv run python -c "from app.db.base import Base; from app.db.session import async_session_maker; print(Base, async_session_maker)"
+   uv run mypy
+   uv run ruff check app/db
+   uv run pytest app/tests/test_auth.py app/tests/test_smoke.py -q
+   ```
+
+4. After the connection layer passes, create the user database model and the PostgreSQL
+   user repository in a separate small step.
+5. Do not persist message history, translation context, or chat delivery state in this
+   slice.
 
 ## Backend Layout
 

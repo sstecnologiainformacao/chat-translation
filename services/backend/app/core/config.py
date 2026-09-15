@@ -11,9 +11,9 @@ class Settings(BaseSettings):
     openai_api_key: str
     openai_model: str = "gpt-5.4-mini"
     is_development: bool
+    database_url: str
 
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:
-    # BaseSettings loads required fields from environment variables at runtime.
     return Settings()  # type: ignore[call-arg]

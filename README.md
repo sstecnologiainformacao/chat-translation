@@ -22,3 +22,10 @@ Then edit `environment/backend.env` and run:
 ```bash
 docker compose up --build
 ```
+
+The local stack starts:
+- `postgres` for persistent local user storage.
+- `backend` for FastAPI and WebSocket chat.
+- `frontend` for the Vite app.
+
+PostgreSQL data is stored in the named Docker volume `chat-translation_postgres-data`.

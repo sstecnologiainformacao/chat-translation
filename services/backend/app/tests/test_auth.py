@@ -1,5 +1,27 @@
+from collections.abc import Iterator
+
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
+
+from app.repositories.in_memory import InMemoryUserRepository
+
+
+@pytest.fixture
+def client(app: FastAPI) -> Iterator[TestClient]:
+    repository = InMemoryUserRepository()
+
+    def override_get_user_repository() -> InMemoryUserRepository:
+        return repository
+
+    from app.dependencies.auth import get_user_repository
+
+    app.dependency_overrides[get_user_repository] = override_get_user_repository
+
+    with TestClient(app) as test_client:
+        yield test_client
+
+    app.dependency_overrides.clear()
 
 
 def test_encode_then_decode_returns_payload() -> None:
