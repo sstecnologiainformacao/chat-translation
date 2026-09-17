@@ -26,7 +26,7 @@ def create_app() -> FastAPI:
     app.include_router(auth_router.router)
     app.include_router(websocket_router.router)
     app.state.chat_service = ChatService(
-        manager=ConnectionManager(max_connections=10),
+        manager=ConnectionManager(max_connections=30),
         translator=create_translation_provider(),
         repository=InMemoryMessageRepository(),
     )

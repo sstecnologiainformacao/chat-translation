@@ -42,8 +42,10 @@ Rules loaded when Codex touches `services/backend/`. Universal rules live in the
 ## Conscious limitations of the MVP
 
 - Message history remains in memory and is lost on restart.
-- Registered local users are being moved to PostgreSQL persistence per `../../../chat-translation-docs/decisions/0009-use-postgresql-for-local-user-persistence.md`.
-- Multiple simultaneous WebSocket connections are allowed for the learning MVP.
+- Registered local users are persisted in PostgreSQL per
+  `../../../chat-translation-docs/decisions/0009-use-postgresql-for-local-user-persistence.md`.
+- Multiple simultaneous WebSocket connections are allowed up to the explicit local capacity limit
+  configured by the application. The current target is 30 connections.
 - JWT not re-validated after handshake; expired tokens stay alive until disconnect.
 - No automatic reconnection.
 

@@ -8,6 +8,7 @@ from starlette.websockets import WebSocketDisconnect
 from app.core.security import InvalidTokenError, decode_jwt
 from app.schemas.auth import TokenPayload
 from app.schemas.messages import ClientMessage
+from app.services.chat import ConnectionLimitReachedError
 
 router = APIRouter(tags=["websocket"])
 client_message_adapter: TypeAdapter[ClientMessage] = TypeAdapter(ClientMessage)
@@ -19,18 +20,22 @@ async def chat_websocket(websocket: WebSocket, token: str | None = None) -> None
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
 
-    chat = websocket.app.state.chat_service
     try:
         token_payload: TokenPayload = decode_jwt(token)
     except InvalidTokenError:
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
 
-    await websocket.accept()
-    connection = await chat.connect(
-        websocket, nickname=token_payload.nickname, language=token_payload.language
-    )
-    await chat.join_room(connection, room="general")
+    try:
+        chat = websocket.app.state.chat_service
+        await websocket.accept()
+        connection = await chat.connect(
+            websocket, nickname=token_payload.nickname, language=token_payload.language
+        )
+        await chat.join_room(connection, room="general")
+    except ConnectionLimitReachedError:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
+        return
 
     try:
         while True:

@@ -1,6 +1,8 @@
+import pytest
+
 from app.repositories.base import StoredMessage
 from app.repositories.in_memory import InMemoryMessageRepository
-from app.services.chat import ChatService, ConnectionManager
+from app.services.chat import ChatService, ConnectionLimitReachedError, ConnectionManager
 from app.services.translation.base import (
     TranslationContext,
     TranslationError,
@@ -1112,3 +1114,23 @@ async def test_send_room_message_broadcasts_original_before_translation_update()
     assert ws_maria.sent[0]["type"] == "room_message"
     assert ws_joao.sent[1]["type"] == "room_translation_update"
     assert ws_maria.sent[1]["type"] == "room_translation_update"
+
+
+async def test_connect_raises_when_connection_limit_is_reached() -> None:
+    manager = ConnectionManager(max_connections=1)
+    repository = InMemoryMessageRepository()
+    service = ChatService(
+        manager=manager,
+        translator=FakeTranslator(context_update_summary="It's a summary"),
+        repository=repository,
+    )
+
+    ws_joao = DummyWebSocket()
+    ws_maria = DummyWebSocket()
+
+    await service.connect(ws_joao, nickname="joao", language="Portuguese")
+
+    with pytest.raises(ConnectionLimitReachedError):
+        await service.connect(ws_maria, nickname="maria", language="English")
+
+    assert manager.connection_count() == 1

@@ -22,6 +22,10 @@ class ActiveConnection:
         self.language = language
 
 
+class ConnectionLimitReachedError(Exception):
+    "The room is full at this moment. Try again later"
+
+
 class Conversation:
     def __init__(self, *, key: str):
         self.context: TranslationContext = TranslationContext.new_instance()
@@ -63,6 +67,9 @@ class ConnectionManager:
         nickname: str,
         language: str,
     ) -> ActiveConnection:
+        if len(self._connections) >= self.max_connections:
+            raise ConnectionLimitReachedError()
+
         connection = ActiveConnection(ws, nickname=nickname, language=language)
         self._connections.append(connection)
         return connection

@@ -161,6 +161,9 @@ ws://127.0.0.1:8000/ws/chat?token=<jwt>
 The token is validated during the WebSocket handshake. Missing or invalid tokens are rejected with
 close code `1008`.
 
+The local app accepts at most 30 simultaneous WebSocket connections. When that capacity is reached,
+an additional connection is closed with code `1008` and is not registered in the connection manager.
+
 The backend automatically joins authenticated users to the fixed public room named `general`.
 
 Public room message:
@@ -203,6 +206,9 @@ If a private recipient is not connected, the sender receives:
 
 Successful room messages are broadcast as `room_message` payloads. When a user joins a room with
 stored messages, the user receives a `room_history` payload with recent in-memory messages.
+
+For new public messages, the original `room_message` is broadcast before translation completes. A
+later `room_translation_update` payload replaces the pending translation in the frontend.
 
 ## Translation Provider
 
