@@ -3,6 +3,7 @@ from app.services.translation.base import (
     TranslationContextUpdate,
     TranslationResult,
 )
+from app.services.translation.diagnostics import TranslationDiagnostics
 
 
 class FakeTranslator:
@@ -16,6 +17,7 @@ class FakeTranslator:
         source_language: str,
         target_languages: set[str],
         context: TranslationContext,
+        diagnostics: TranslationDiagnostics | None = None,
     ) -> TranslationResult:
         new_target_languages = set(target_languages)
         new_target_languages.discard(source_language)

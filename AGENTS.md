@@ -8,7 +8,7 @@ This file is the entry point for Codex working on `chat-translation`. Keep it sm
 
 ## Permanent project policies
 
-1. **No cloud, ever.** This project does not involve Azure, AWS, GCP, Terraform, Functions, Container App Jobs, or any cloud-specific tooling. Reject suggestions that require any of these. Codified in `../chat-translation-docs/decisions/0004-local-only-policy.md`.
+1. **Local runtime; no cloud infrastructure.** This project does not involve Azure, AWS, GCP, Terraform, Functions, Container App Jobs, or cloud deployment tooling. A temporary ngrok tunnel may expose the local Docker Compose application for manual testing and performance-data collection; it must not become a deployment target or require committed credentials. Codified in `../chat-translation-docs/decisions/0004-local-only-policy.md`.
 2. **All artifacts in English.** Every Markdown, code file, comment, log message, identifier, and commit message is written in English regardless of the conversation language. Codified in `../chat-translation-docs/decisions/0006-english-only-artifacts.md`.
 3. **Keep edits scoped and direct.** Codex may edit project files when asked, including Python files, but changes should follow the existing structure and be explained clearly.
 4. **`AGENTS.md` is split by area.** This root file holds only universal rules; subdirectory rules live in nested `AGENTS.md` files. Codified in `../chat-translation-docs/decisions/0007-agent-instructions.md`.

@@ -1,3 +1,7 @@
+import asyncio
+import json
+import logging
+
 import pytest
 
 from app.repositories.base import StoredMessage
@@ -8,6 +12,7 @@ from app.services.translation.base import (
     TranslationError,
     TranslationResult,
 )
+from app.services.translation.diagnostics import TranslationDiagnostics
 from app.services.translation.fake_translator import FakeTranslator
 
 
@@ -21,8 +26,31 @@ class FakeTranslatorWithError:
         source_language: str,
         target_languages: set[str],
         context: TranslationContext,
+        diagnostics: TranslationDiagnostics | None = None,
     ) -> TranslationResult:
         raise TranslationError()
+
+
+class ConcurrentDiagnosticsTranslator:
+    def __init__(self) -> None:
+        self.diagnostics: list[TranslationDiagnostics] = []
+
+    async def translate(
+        self,
+        *,
+        text: str,
+        source_language: str,
+        target_languages: set[str],
+        context: TranslationContext,
+        diagnostics: TranslationDiagnostics | None = None,
+    ) -> TranslationResult:
+        assert diagnostics is not None
+        self.diagnostics.append(diagnostics)
+        await asyncio.sleep(0)
+        return TranslationResult(
+            translations={language: f"translated {text}" for language in target_languages},
+            context_update=None,
+        )
 
 
 class DummyWebSocket:
@@ -1134,3 +1162,120 @@ async def test_connect_raises_when_connection_limit_is_reached() -> None:
         await service.connect(ws_maria, nickname="maria", language="English")
 
     assert manager.connection_count() == 1
+
+
+async def test_successful_room_translation_emits_performance_event(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.INFO, logger="uvicorn.error.translation_performance")
+    manager = ConnectionManager(max_connections=10)
+    service = ChatService(
+        manager=manager,
+        translator=FakeTranslator(context_update_summary="private summary"),
+        repository=InMemoryMessageRepository(),
+    )
+    joao = await service.connect(DummyWebSocket(), nickname="joao", language="Portuguese")
+    maria = await service.connect(DummyWebSocket(), nickname="maria", language="English")
+    await service.join_room(joao, room="general")
+    await service.join_room(maria, room="general")
+
+    await service.send_room_message(
+        joao,
+        text="private message text",
+        message_id="msg-performance",
+        sent_at="2026-09-17T12:00:00Z",
+        validation_ms=0.125,
+    )
+
+    records = [
+        record
+        for record in caplog.records
+        if record.name == "uvicorn.error.translation_performance"
+    ]
+    assert len(records) == 1
+    event = json.loads(records[0].message)
+    assert event["event"] == "translation_performance"
+    assert event["status"] == "success"
+    assert event["message_id"] == "msg-performance"
+    assert event["target_language_count"] == 1
+    assert event["room_connection_count"] == 2
+    assert event["recent_context_message_count"] == 1
+    assert event["validation_ms"] == 0.125
+    assert event["original_broadcast_ms"] is not None
+    assert event["translation_broadcast_ms"] is not None
+    assert event["repository_save_ms"] is not None
+    assert event["message_to_translation_update_ms"] is not None
+    assert "private message text" not in records[0].message
+    assert "private summary" not in records[0].message
+
+
+async def test_failed_room_translation_emits_failure_diagnostics(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    caplog.set_level(logging.INFO, logger="uvicorn.error.translation_performance")
+    manager = ConnectionManager(max_connections=10)
+    service = ChatService(
+        manager=manager,
+        translator=FakeTranslatorWithError(),
+        repository=InMemoryMessageRepository(),
+    )
+    joao = await service.connect(DummyWebSocket(), nickname="joao", language="Portuguese")
+    maria = await service.connect(DummyWebSocket(), nickname="maria", language="English")
+    await service.join_room(joao, room="general")
+    await service.join_room(maria, room="general")
+
+    await service.send_room_message(
+        joao,
+        text="Hello",
+        message_id="msg-failed-performance",
+        sent_at="2026-09-17T12:00:00Z",
+    )
+
+    records = [
+        record
+        for record in caplog.records
+        if record.name == "uvicorn.error.translation_performance"
+    ]
+    assert len(records) == 1
+    event = json.loads(records[0].message)
+    assert event["status"] == "failed"
+    assert event["failure_stage"] == "translation"
+    assert event["error_type"] == "TranslationError"
+    assert event["translation_broadcast_ms"] is not None
+    assert event["message_to_translation_update_ms"] is not None
+
+
+async def test_concurrent_translations_keep_separate_diagnostics() -> None:
+    manager = ConnectionManager(max_connections=10)
+    translator = ConcurrentDiagnosticsTranslator()
+    service = ChatService(
+        manager=manager,
+        translator=translator,
+        repository=InMemoryMessageRepository(),
+    )
+    joao = await service.connect(DummyWebSocket(), nickname="joao", language="Portuguese")
+    ana = await service.connect(DummyWebSocket(), nickname="ana", language="Portuguese")
+    maria = await service.connect(DummyWebSocket(), nickname="maria", language="English")
+    await service.join_room(joao, room="general")
+    await service.join_room(ana, room="general")
+    await service.join_room(maria, room="general")
+
+    await asyncio.gather(
+        service.send_room_message(
+            joao,
+            text="Message A",
+            message_id="msg-a",
+            sent_at="2026-09-17T12:00:00Z",
+        ),
+        service.send_room_message(
+            ana,
+            text="Message B",
+            message_id="msg-b",
+            sent_at="2026-09-17T12:00:01Z",
+        ),
+    )
+
+    assert len(translator.diagnostics) == 2
+    assert {item.message_id for item in translator.diagnostics} == {"msg-a", "msg-b"}
+    assert len({item.translation_operation_id for item in translator.diagnostics}) == 2
+    assert translator.diagnostics[0] is not translator.diagnostics[1]
