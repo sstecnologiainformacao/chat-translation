@@ -1,5 +1,7 @@
 from typing import Protocol, Self
 
+from app.services.translation.diagnostics import TranslationDiagnostics
+
 
 class Message:
     def __init__(self, *, message: str, nickname: str):
@@ -55,6 +57,7 @@ class TranslationProvider(Protocol):
         source_language: str,
         target_languages: set[str],
         context: TranslationContext,
+        diagnostics: TranslationDiagnostics | None = None,
     ) -> TranslationResult: ...
 
 
@@ -63,4 +66,5 @@ class TranslationClient(Protocol):
         self,
         *,
         api_parameters: dict[str, object],
+        diagnostics: TranslationDiagnostics | None = None,
     ) -> dict[str, object]: ...

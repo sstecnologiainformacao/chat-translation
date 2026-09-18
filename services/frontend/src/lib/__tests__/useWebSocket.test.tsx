@@ -70,6 +70,26 @@ describe("useWebSocket", () => {
     expect(result.current.status).toBe("closed");
     expect(result.current.closeReason).toBe("invalid_session");
   });
+
+  it("ignores a stale close event after replacing the socket", () => {
+    const { rerender, result } = renderHook(
+      ({ url }) => useWebSocket(url),
+      { initialProps: { url: "ws://localhost/first" } },
+    );
+    const firstSocket = MockWebSocket.instances[0];
+
+    rerender({ url: "ws://localhost/second" });
+    const secondSocket = MockWebSocket.instances[1];
+
+    act(() => {
+      secondSocket.open();
+      firstSocket.closeWithReason("replaced");
+    });
+
+    expect(result.current.status).toBe("open");
+    expect(result.current.sendJson({ type: "room_message" })).toBe(true);
+    expect(secondSocket.send).toHaveBeenCalledOnce();
+  });
 });
 
 class MockWebSocket {

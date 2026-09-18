@@ -1,3 +1,5 @@
+from time import perf_counter_ns
+
 from pydantic import ValidationError
 
 from app.services.translation.base import (
@@ -8,6 +10,7 @@ from app.services.translation.base import (
     TranslationError,
     TranslationResult,
 )
+from app.services.translation.diagnostics import TranslationDiagnostics, elapsed_ms
 from app.services.translation.open_ai_models import OpenAITranslationResponse
 
 
@@ -24,19 +27,42 @@ class OpenAITranslator:
         source_language: str,
         target_languages: set[str],
         context: TranslationContext,
+        diagnostics: TranslationDiagnostics | None = None,
     ) -> TranslationResult:
-
+        prompt_started_ns = perf_counter_ns()
         api_parameters = self._build_api_parameters(
             text=text,
             source_language=source_language,
             target_languages=target_languages,
             context=context,
         )
+        if diagnostics is not None:
+            diagnostics.prompt_build_ms = elapsed_ms(prompt_started_ns)
+            instructions = api_parameters.get("instructions", "")
+            input_text = api_parameters.get("input", "")
+            diagnostics.application_prompt_character_count = len(str(instructions)) + len(
+                str(input_text)
+            )
         if self._client is None:
-            raise TranslationError()
+            error = TranslationError()
+            if diagnostics is not None:
+                diagnostics.mark_failed(stage="openai_client", error=error)
+            raise error
 
-        response = await self._client.translate(api_parameters=api_parameters)
-        return self._parse_open_ai_response(response=response)
+        response = await self._client.translate(
+            api_parameters=api_parameters,
+            diagnostics=diagnostics,
+        )
+        processing_started_ns = perf_counter_ns()
+        try:
+            return self._parse_open_ai_response(response=response)
+        except TranslationError as error:
+            if diagnostics is not None:
+                diagnostics.mark_failed(stage="domain_response_processing", error=error)
+            raise
+        finally:
+            if diagnostics is not None:
+                diagnostics.domain_response_processing_ms = elapsed_ms(processing_started_ns)
 
     def _build_api_parameters(
         self,

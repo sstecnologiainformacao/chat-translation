@@ -1,4 +1,7 @@
+from time import perf_counter_ns
 from typing import Protocol
+
+from starlette.websockets import WebSocketDisconnect
 
 from app.repositories.base import MessageRepository, StoredMessage
 from app.services.translation.base import (
@@ -7,6 +10,11 @@ from app.services.translation.base import (
     TranslationError,
     TranslationProvider,
     TranslationResult,
+)
+from app.services.translation.diagnostics import (
+    TranslationDiagnostics,
+    elapsed_ms,
+    emit_translation_performance,
 )
 
 
@@ -20,6 +28,10 @@ class ActiveConnection:
         self.ws = ws
         self.nickname = nickname
         self.language = language
+
+
+class ConnectionLimitReachedError(Exception):
+    "The room is full at this moment. Try again later"
 
 
 class Conversation:
@@ -63,6 +75,9 @@ class ConnectionManager:
         nickname: str,
         language: str,
     ) -> ActiveConnection:
+        if len(self._connections) >= self.max_connections:
+            raise ConnectionLimitReachedError()
+
         connection = ActiveConnection(ws, nickname=nickname, language=language)
         self._connections.append(connection)
         return connection
@@ -88,12 +103,29 @@ class ConnectionManager:
     async def broadcast_to_room(self, room: str, message: dict[str, object]) -> None:
         conversation: Conversation = self._rooms.get(room, Conversation(key=room))
 
-        for connection in conversation.connections:
-            await self.send_to(connection, message)
+        for connection in tuple(conversation.connections):
+            try:
+                await self.send_to(connection, message)
+            except (RuntimeError, WebSocketDisconnect):
+                await self.disconnect(connection)
 
     def room_connection_count(self, room: str) -> int:
         conversation: Conversation = self._rooms.get(room, Conversation(key=room))
         return len(conversation.connections)
+
+    def room_participants(self, room: str) -> list[dict[str, str]]:
+        conversation = self._rooms.get(room)
+        if conversation is None:
+            return []
+
+        participants = {
+            connection.nickname: {
+                "nickname": connection.nickname,
+                "language": connection.language,
+            }
+            for connection in conversation.connections
+        }
+        return sorted(participants.values(), key=lambda item: item["nickname"].casefold())
 
     async def send_to(
         self,
@@ -203,6 +235,8 @@ class ChatService:
         text: str,
         message_id: str,
         sent_at: str,
+        message_received_ns: int | None = None,
+        validation_ms: float = 0.0,
     ) -> None:
         recipient = self._manager.find_by_nickname(recipient_nickname)
 
@@ -215,17 +249,36 @@ class ChatService:
             await self._manager.send_to(sender, error_message)
             return
 
-        try:
-            sorted_users_nicks = sorted([sender.nickname, recipient_nickname])
-            room = f"private:{':'.join(sorted_users_nicks)}"
-            conversation: Conversation | None = self._get_room(room=room)
+        received_ns = message_received_ns or perf_counter_ns()
+        sorted_users_nicks = sorted([sender.nickname, recipient_nickname])
+        room = f"private:{':'.join(sorted_users_nicks)}"
+        conversation: Conversation = self._get_room(room=room)
+        diagnostics = TranslationDiagnostics(
+            room_id="private",
+            message_id=message_id,
+            source_language=sender.language,
+            target_language_count=1,
+            room_connection_count=2,
+            message_received_ns=received_ns,
+            operation_type="private_message",
+            validation_ms=validation_ms,
+        )
+        diagnostics.recent_context_message_count = len(conversation.context.messages)
+        diagnostics.context_summary_character_count = len(conversation.context.context)
+        diagnostics.recent_context_character_count = sum(
+            len(item.nickname) + len(item.message) for item in conversation.context.messages
+        )
+        current_stage = "translation"
+        translation_started_ns = perf_counter_ns()
 
+        try:
             if conversation is not None:
                 translations = await self._translate_text(
                     sender=sender,
                     list_languages=set([recipient.language]),
                     text=text,
                     context=conversation.context,
+                    diagnostics=diagnostics,
                 )
 
                 result_translation = {}
@@ -245,28 +298,75 @@ class ChatService:
 
                 if translations is not None and translations.context_update is not None:
                     conversation.update_context(new_context=translations.context_update.summary)
-                await self._manager.send_to(sender, message)
-                await self._manager.send_to(recipient, message)
-                await self.repository.save_message(
-                    message_id=message_id,
-                    room=room,
-                    sender_nickname=sender.nickname,
-                    sender_language=sender.language,
-                    original_text=text,
-                    translations=result_translation,
-                    sent_at=sent_at,
+                current_stage = "translation_broadcast"
+                translation_broadcast_started_ns = perf_counter_ns()
+                try:
+                    await self._manager.send_to(sender, message)
+                    await self._manager.send_to(recipient, message)
+                finally:
+                    diagnostics.translation_broadcast_ms = elapsed_ms(
+                        translation_broadcast_started_ns
+                    )
+                translation_broadcast_completed_ns = perf_counter_ns()
+                diagnostics.message_to_translation_update_ms = elapsed_ms(
+                    received_ns,
+                    translation_broadcast_completed_ns,
                 )
+                diagnostics.translation_pipeline_ms = elapsed_ms(
+                    translation_started_ns,
+                    translation_broadcast_completed_ns,
+                )
+                diagnostics.status = "skipped" if translations is None else "success"
+
+                current_stage = "repository_save"
+                repository_save_started_ns = perf_counter_ns()
+                try:
+                    await self.repository.save_message(
+                        message_id=message_id,
+                        room=room,
+                        sender_nickname=sender.nickname,
+                        sender_language=sender.language,
+                        original_text=text,
+                        translations=result_translation,
+                        sent_at=sent_at,
+                    )
+                finally:
+                    diagnostics.repository_save_ms = elapsed_ms(repository_save_started_ns)
             else:
                 raise TranslationError
-        except TranslationError:
-            await self._manager.send_to(
-                sender,
-                {
-                    "type": "error",
-                    "reason": "translation_failed",
-                },
-            )
+        except TranslationError as error:
+            if diagnostics.failure_stage is None:
+                diagnostics.mark_failed(stage=current_stage, error=error)
+            error_broadcast_started_ns = perf_counter_ns()
+            try:
+                await self._manager.send_to(
+                    sender,
+                    {
+                        "type": "error",
+                        "reason": "translation_failed",
+                    },
+                )
+            finally:
+                error_broadcast_completed_ns = perf_counter_ns()
+                diagnostics.translation_broadcast_ms = elapsed_ms(
+                    error_broadcast_started_ns,
+                    error_broadcast_completed_ns,
+                )
+                diagnostics.message_to_translation_update_ms = elapsed_ms(
+                    received_ns,
+                    error_broadcast_completed_ns,
+                )
+                diagnostics.translation_pipeline_ms = elapsed_ms(
+                    translation_started_ns,
+                    error_broadcast_completed_ns,
+                )
             return
+        except Exception as error:
+            diagnostics.mark_failed(stage=current_stage, error=error)
+            raise
+        finally:
+            diagnostics.handler_total_ms = elapsed_ms(received_ns)
+            emit_translation_performance(diagnostics)
 
     async def send_room_message(
         self,
@@ -275,13 +375,25 @@ class ChatService:
         text: str,
         message_id: str,
         sent_at: str,
+        message_received_ns: int | None = None,
+        validation_ms: float = 0.0,
     ) -> None:
+        received_ns = message_received_ns or perf_counter_ns()
+        room_key = self._get_key_room_general()
+        list_languages: set[str] = self._check_languages_to_translate(sender=sender, room=room_key)
 
-        list_languages: set[str] = self._check_languages_to_translate(
-            sender=sender, room=self._get_key_room_general()
+        conversation: Conversation | None = self._get_room(room=room_key)
+        diagnostics = TranslationDiagnostics(
+            room_id="general",
+            message_id=message_id,
+            source_language=sender.language,
+            target_language_count=len(list_languages),
+            room_connection_count=self._manager.room_connection_count(room_key),
+            message_received_ns=received_ns,
+            validation_ms=validation_ms,
         )
-
-        conversation: Conversation | None = self._get_room(room=self._get_key_room_general())
+        current_stage = "message_preparation"
+        translation_started_ns: int | None = None
 
         try:
             if conversation is not None:
@@ -298,13 +410,27 @@ class ChatService:
 
                 original_message = Message(message=text, nickname=sender.nickname)
                 conversation.add_message(message=original_message)
-                await self._manager.broadcast_to_room(self._get_key_room_general(), message)
+                diagnostics.recent_context_message_count = len(conversation.context.messages)
+                diagnostics.context_summary_character_count = len(conversation.context.context)
+                diagnostics.recent_context_character_count = sum(
+                    len(item.nickname) + len(item.message) for item in conversation.context.messages
+                )
 
+                current_stage = "original_broadcast"
+                original_broadcast_started_ns = perf_counter_ns()
+                try:
+                    await self._manager.broadcast_to_room(room_key, message)
+                finally:
+                    diagnostics.original_broadcast_ms = elapsed_ms(original_broadcast_started_ns)
+
+                current_stage = "translation"
+                translation_started_ns = perf_counter_ns()
                 translations_result: TranslationResult | None = await self._translate_text(
                     sender=sender,
                     list_languages=list_languages,
                     text=text,
                     context=conversation.context,
+                    diagnostics=diagnostics,
                 )
 
                 if (
@@ -329,19 +455,42 @@ class ChatService:
                     "sent_at": sent_at,
                 }
 
-                await self._manager.broadcast_to_room(
-                    self._get_key_room_general(), message_translated
+                current_stage = "translation_broadcast"
+                translation_broadcast_started_ns = perf_counter_ns()
+                try:
+                    await self._manager.broadcast_to_room(room_key, message_translated)
+                finally:
+                    diagnostics.translation_broadcast_ms = elapsed_ms(
+                        translation_broadcast_started_ns
+                    )
+                translation_broadcast_completed_ns = perf_counter_ns()
+                diagnostics.message_to_translation_update_ms = elapsed_ms(
+                    received_ns,
+                    translation_broadcast_completed_ns,
                 )
-                await self.repository.save_message(
-                    message_id=message_id,
-                    room="general",
-                    sender_nickname=sender.nickname,
-                    sender_language=sender.language,
-                    original_text=text,
-                    translations=translations_dict,
-                    sent_at=sent_at,
+                diagnostics.translation_pipeline_ms = elapsed_ms(
+                    translation_started_ns,
+                    translation_broadcast_completed_ns,
                 )
-        except TranslationError:
+                diagnostics.status = "skipped" if translations_result is None else "success"
+
+                current_stage = "repository_save"
+                repository_save_started_ns = perf_counter_ns()
+                try:
+                    await self.repository.save_message(
+                        message_id=message_id,
+                        room="general",
+                        sender_nickname=sender.nickname,
+                        sender_language=sender.language,
+                        original_text=text,
+                        translations=translations_dict,
+                        sent_at=sent_at,
+                    )
+                finally:
+                    diagnostics.repository_save_ms = elapsed_ms(repository_save_started_ns)
+        except TranslationError as error:
+            if diagnostics.failure_stage is None:
+                diagnostics.mark_failed(stage=current_stage, error=error)
             message_failed: dict[str, object] = {
                 "type": "room_translation_update",
                 "message_id": message_id,
@@ -353,8 +502,37 @@ class ChatService:
                 "translation_status": "failed",
                 "sent_at": sent_at,
             }
-            await self._manager.broadcast_to_room(self._get_key_room_general(), message_failed)
+            translation_broadcast_started_ns = perf_counter_ns()
+            try:
+                await self._manager.broadcast_to_room(room_key, message_failed)
+            except Exception as broadcast_error:
+                diagnostics.mark_failed(
+                    stage="translation_broadcast",
+                    error=broadcast_error,
+                )
+                raise
+            finally:
+                translation_broadcast_completed_ns = perf_counter_ns()
+                diagnostics.translation_broadcast_ms = elapsed_ms(
+                    translation_broadcast_started_ns,
+                    translation_broadcast_completed_ns,
+                )
+                diagnostics.message_to_translation_update_ms = elapsed_ms(
+                    received_ns,
+                    translation_broadcast_completed_ns,
+                )
+                if translation_started_ns is not None:
+                    diagnostics.translation_pipeline_ms = elapsed_ms(
+                        translation_started_ns,
+                        translation_broadcast_completed_ns,
+                    )
             return
+        except Exception as error:
+            diagnostics.mark_failed(stage=current_stage, error=error)
+            raise
+        finally:
+            diagnostics.handler_total_ms = elapsed_ms(received_ns)
+            emit_translation_performance(diagnostics)
 
     def _check_languages_to_translate(self, *, sender: ActiveConnection, room: str) -> set[str]:
         return self._manager.target_languages_room(
@@ -375,6 +553,7 @@ class ChatService:
         list_languages: set[str],
         text: str,
         context: TranslationContext,
+        diagnostics: TranslationDiagnostics | None = None,
     ) -> TranslationResult | None:
         if len(list_languages) == 0:
             return None
@@ -387,7 +566,50 @@ class ChatService:
             source_language=sender.language,
             target_languages=new_list_languages,
             context=TranslationContext(context=context.context, messages=context.messages),
+            diagnostics=diagnostics,
         )
+
+    async def _translate_history_message(
+        self,
+        *,
+        message: StoredMessage,
+        room: str,
+        target_languages: set[str],
+        context: TranslationContext,
+    ) -> TranslationResult:
+        operation_started_ns = perf_counter_ns()
+        diagnostics = TranslationDiagnostics(
+            room_id=room,
+            message_id=message.message_id,
+            source_language=message.sender_language,
+            target_language_count=len(target_languages),
+            room_connection_count=self._manager.room_connection_count(self.build_room_key(room)),
+            message_received_ns=operation_started_ns,
+            operation_type="history_translation",
+            recent_context_message_count=len(context.messages),
+            context_summary_character_count=len(context.context),
+            recent_context_character_count=sum(
+                len(item.nickname) + len(item.message) for item in context.messages
+            ),
+        )
+        try:
+            result = await self.translator.translate(
+                text=message.original_text,
+                source_language=message.sender_language,
+                target_languages=target_languages,
+                context=context,
+                diagnostics=diagnostics,
+            )
+            diagnostics.status = "success"
+            return result
+        except Exception as error:
+            if diagnostics.failure_stage is None:
+                diagnostics.mark_failed(stage="translation", error=error)
+            raise
+        finally:
+            diagnostics.translation_pipeline_ms = elapsed_ms(operation_started_ns)
+            diagnostics.handler_total_ms = diagnostics.translation_pipeline_ms
+            emit_translation_performance(diagnostics)
 
     async def connect(
         self,
@@ -417,9 +639,9 @@ class ChatService:
                     languages: set[str] = set()
                     languages.add(connection.language)
                     if conversation is not None:
-                        result: TranslationResult | None = await self.translator.translate(
-                            text=message.original_text,
-                            source_language=message.sender_language,
+                        result: TranslationResult | None = await self._translate_history_message(
+                            message=message,
+                            room=room,
                             target_languages=languages,
                             context=conversation.context,
                         )
@@ -446,3 +668,14 @@ class ChatService:
 
     async def disconnect(self, connection: ActiveConnection) -> None:
         await self._manager.disconnect(connection=connection)
+
+    async def broadcast_room_presence(self, *, room: str) -> None:
+        room_key = self.build_room_key(room)
+        await self._manager.broadcast_to_room(
+            room_key,
+            {
+                "type": "room_presence",
+                "room": room,
+                "users": self._manager.room_participants(room_key),
+            },
+        )

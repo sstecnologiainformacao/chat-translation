@@ -1,4 +1,5 @@
 from app.services.translation.base import TranslationClient
+from app.services.translation.diagnostics import TranslationDiagnostics
 
 
 class FakeClient(TranslationClient):
@@ -9,7 +10,12 @@ class FakeClient(TranslationClient):
     def received_api_parameters(self) -> dict[str, object]:
         return self._received_api_parameters
 
-    async def translate(self, *, api_parameters: dict[str, object]) -> dict[str, object]:
+    async def translate(
+        self,
+        *,
+        api_parameters: dict[str, object],
+        diagnostics: TranslationDiagnostics | None = None,
+    ) -> dict[str, object]:
         self._received_api_parameters = api_parameters
 
         response: dict[str, object] = {

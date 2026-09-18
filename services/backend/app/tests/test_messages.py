@@ -4,9 +4,11 @@ from pydantic import ValidationError
 from app.schemas.messages import (
     ClientPrivateMessage,
     ClientRoomMessage,
+    RoomParticipant,
     ServerErrorMessage,
     ServerPrivateMessage,
     ServerRoomMessage,
+    ServerRoomPresenceMessage,
     ServerRoomTranslationUpdateMessage,
     ServerSystemEventMessage,
 )
@@ -23,6 +25,11 @@ def test_client_room_message_default_to_general_room() -> None:
 def test_client_room_message_rejects_empty_text() -> None:
     with pytest.raises(ValidationError):
         ClientRoomMessage(text="")
+
+
+def test_client_room_message_rejects_text_above_character_limit() -> None:
+    with pytest.raises(ValidationError):
+        ClientRoomMessage(text="a" * 2001)
 
 
 def test_client_room_message_rejects_unknown_room() -> None:
@@ -80,6 +87,16 @@ def test_server_system_event_language_is_optional() -> None:
     assert message.event == "user_left"
     assert message.room == "general"
     assert message.language is None
+
+
+def test_server_room_presence_contains_connected_users() -> None:
+    message = ServerRoomPresenceMessage(
+        users=[RoomParticipant(nickname="joao", language="Portuguese")]
+    )
+
+    assert message.type == "room_presence"
+    assert message.room == "general"
+    assert message.users[0].nickname == "joao"
 
 
 def test_server_error_message_restricts_reason() -> None:

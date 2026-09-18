@@ -62,7 +62,8 @@ services:
       context: .
       dockerfile: services/frontend/Dockerfile.dev
     environment:
-      VITE_API_URL: http://localhost:8000
+      VITE_API_URL: ${VITE_API_URL:-http://localhost:8000}
+      VITE_ALLOWED_HOST: ${VITE_ALLOWED_HOST:-}
     ports:
       - "5173:5173"
     volumes:

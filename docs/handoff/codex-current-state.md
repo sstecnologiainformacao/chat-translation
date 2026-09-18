@@ -1,141 +1,152 @@
-# Codex Handoff: Current Backend State
+# Codex Handoff: Current Project State
 
-Date: 2026-07-29
+Date: 2026-09-17
 
 ## Purpose
 
-This document lets a future Codex session resume the backend learning work without relying on chat history.
-
-The active request before this update was to re-evaluate documentation after the OpenAI structured response work was merged into `main`.
+This document lets a future Codex session resume the current learning work without relying on chat
+history. It is the most current checkpoint when older planning documents disagree with the code.
 
 ## Required Reading Order
 
 1. `AGENTS.md`
-2. `services/backend/AGENTS.md`
-3. `../chat-translation-docs/plans/python-chat-backend-plan.md`
-4. This handoff document
-5. Only the files needed for the next small backend step
+2. The nested `AGENTS.md` for the area being changed
+3. This handoff document
+4. Only the files needed for the next small step
 
-Do not load broad unrelated documentation unless the current step requires it.
+The detailed plans under `../chat-translation-docs/` contain useful history, but some active-step and
+test-count sections are stale. Use the code and this handoff as the current operational state.
 
-## Important Project Rules
+## Working Rules
 
-- This is a local-only learning project. Do not suggest cloud services.
+- The project is local-only. Do not introduce cloud services or cloud-specific tooling.
 - All repository artifacts must be written in English.
-- The learner may write prompts in English to practice.
-- Codex should keep responding in Portuguese and include a brief English improvement note in every response.
-- Codex may edit project files when explicitly asked, but learning-oriented backend work should still favor small objectives, review, checks, and explanation before broad implementation.
-- New backend features must consider Pydantic at application boundaries: HTTP payloads, WebSocket payloads, settings, external API requests/responses, and JSON-shaped provider contracts.
-- Pydantic should be adopted incrementally. Finish the current feature slice first, add Pydantic where it protects a real boundary, and avoid broad refactors mixed into unrelated feature work.
+- Respond to the learner in Portuguese and include a brief English improvement note.
+- For backend Python learning, give a small objective, concepts, file pointers, and expected
+  behavior. Do not provide complete Python code unless the learner explicitly requests it.
+- Codex may implement frontend React changes directly.
+- Consider Pydantic for every new application boundary, but do not force it into internal domain
+  objects where runtime validation or serialization is unnecessary.
+- Keep changes small, test-focused, and consistent with the existing layers.
 
-## Repository State
+## Git State At Handoff
 
 - Repository: `https://github.com/sstecnologiainformacao/chat-translation.git`
-- Working tree path on the original Mac: `/Users/joaolucasdossantos/workspace-estudo/chat-translation`
-- Active branch: `main`
-- The previous OpenAI structured response branch was merged into `main`.
-- The backend quality baseline is currently green:
-  - `uv run pytest -q`: 66 tests passing
-  - `uv run mypy app scripts`: passing
-  - `uv run ruff check app scripts`: passing
-  - `uv run ruff format --check app scripts`: passing
+- Branch: `websocket-connection-limit`
+- Branch base: commit `c1604ca` from `main`
+- The connection-limit work is not committed yet.
+- Modified implementation files:
+  - `services/backend/app/main.py`
+  - `services/backend/app/routers/websocket.py`
+  - `services/backend/app/services/chat.py`
+  - `services/backend/app/tests/test_chat_service.py`
 
-## Current Backend Focus
+Do not discard these learner-authored changes.
 
-The current phase is the tail of Phase 9 from the active learning plan: translation abstraction and conversation context. Phase 10, the OpenAI translator, is implemented enough for local verification.
+## Current Application State
 
-The confirmed design is:
+The local stack runs with Docker Compose and contains:
 
-- Public room context keys should look like `room:general`.
-- Private chat context keys should look like `private:joao:maria`.
-- Private chat participant names must be sorted when building the key.
-- Each conversation keeps compact translation context.
-- The translation provider receives one source message, all target languages, and the current compact context.
-- The translation provider returns both `translations` and `context_update`.
-- Conversation context should be updated only after translation succeeds.
-- If translation fails, the message is not delivered and context is not updated.
+- PostgreSQL for persistent user accounts.
+- An Alembic migration service that runs before the backend.
+- A FastAPI backend with registration, login, JWT authentication, and WebSocket chat.
+- A React/Vite frontend with registration, login, public chat, private chat controls, language
+  selection, dark mode, and session-scoped authentication storage.
 
-## What Was Implemented So Far
+Backend behavior already implemented:
 
-Implemented:
+- PostgreSQL-backed user registration and login through `SqlAlchemyUserRepository`.
+- Dependency functions compose database sessions, repositories, and `AuthService`.
+- Public and private messages with Pydantic WebSocket payload validation.
+- Translation through a provider abstraction with fake and OpenAI implementations.
+- OpenAI Responses API structured output parsed through Pydantic models.
+- Per-conversation compact translation context.
+- In-memory public and private message history.
+- Public history translated for a newly joined user's language.
+- Optimistic public-room delivery: the original message is broadcast first and a
+  `room_translation_update` follows after translation finishes.
+- A fixed supported-language list in the user flow, without country flags.
 
-- Auth, JWT, WebSocket routing, message schemas, public room messaging, and private messaging.
-- Translation provider protocol and fake translator.
-- Translation context and translation result shapes.
-- Provider factory that returns `FakeTranslator` when `IS_DEVELOPMENT=true` and `OpenAITranslator` otherwise.
-- `OpenAIClient` wrapper around the official OpenAI SDK.
-- `OpenAITranslator` using Responses API structured parsing.
-- Pydantic boundary models for OpenAI responses.
-- Conversion from OpenAI list-shaped structured output into internal dictionary-shaped translation results.
-- Manual real-API verification script at `services/backend/scripts/verify_openai_translation.py`.
+Known intentional limitations:
 
-Partially implemented:
+- Message history and translation context are lost when the backend restarts.
+- There is no Redis, RabbitMQ, or background worker yet.
+- Translation still runs inside the backend process.
+- There is no automatic WebSocket reconnection.
+- JWT expiration is checked at connection time, not again during an established WebSocket session.
 
-- Conversation context is passed into translation calls.
-- Private message flow applies the returned summary to its conversation context.
-- Room message flow sends translations, but still needs explicit context update and recent-message tracking checks.
+## Active Work: WebSocket Capacity
 
-Not implemented yet:
+The goal of the current branch is to begin protecting the app before testing 20 to 30 simultaneous
+chat users.
 
-- In-memory message repository and history retrieval.
-- Complete recent-message accumulation in translation context for every successful message path.
-- Tests proving room context updates only after successful translation.
-- Tests proving failed translations do not mutate context.
+Implemented but not committed:
 
-## Current Known Failures
+- The production app creates `ConnectionManager(max_connections=30)`.
+- `ConnectionManager.connect` raises `ConnectionLimitReachedError` when capacity is full.
+- Rejected connections are not added to the manager.
+- The WebSocket router catches that error and closes the connection with code `1008`.
+- A service test proves that a second connection is rejected when a manager configured for one
+  connection is already full, and that the connection count remains one.
 
-None at the quality baseline level.
+Latest verified backend baseline after these changes:
 
-Use this command set from `services/backend/`:
+- `uv run pytest -q`: 94 passed, 1 skipped.
+- `uv run mypy app`: passed for 45 source files.
+- `uv run ruff check app`: passed.
+- `uv run ruff format --check app`: passed.
+
+The skipped test is the opt-in real OpenAI integration test; automated checks must not require a
+real API key.
+
+## Exact Next Step
+
+Add one focused test in `services/backend/app/tests/test_websocket.py` that verifies the router-level
+capacity behavior:
+
+1. Configure the app's `ChatService` with `ConnectionManager(max_connections=1)`.
+2. Open and keep the first authenticated WebSocket connected.
+3. Attempt a second authenticated WebSocket connection.
+4. Assert that the second client receives WebSocket close code `1008`.
+5. Ensure test setup does not leak the one-connection service into other tests.
+
+This test is important because the existing service test proves the manager rule, but does not prove
+that the WebSocket route translates the domain error into the expected protocol close behavior.
+
+After that test passes, rerun the complete backend checks. Then commit this branch before starting
+the next concurrency checkpoint.
+
+## Following Checkpoint
+
+After the connection-cap branch is merged, measure and reason about concurrent message translation.
+The current async route can accept multiple connections, but translation latency, simultaneous API
+calls, broadcast ordering, and failure isolation still need a deliberate test. Do not introduce
+Redis or RabbitMQ before measuring the current behavior and defining the failure and ordering
+requirements.
+
+## Verification Commands
+
+Run from `services/backend/`:
 
 ```bash
+uv run pytest app/tests/test_chat_service.py app/tests/test_websocket.py -q
 uv run pytest -q
-uv run mypy app scripts
-uv run ruff check app scripts
-uv run ruff format --check app scripts
+uv run mypy app
+uv run ruff check app
+uv run ruff format --check app
 ```
 
-## Next Recommended Learning Step
-
-Do not start a broad refactor yet.
-
-Next objective for the learner:
-
-1. Add focused tests around room conversation context updates.
-2. Prove context is updated only after a successful room translation.
-3. Prove failed translation does not mutate room context or deliver the message.
-4. Then decide whether to clean up `Conversation.add_message` and recent message tracking before moving to in-memory history.
-
-Suggested review target:
-
-- `services/backend/app/services/chat.py`
-- `services/backend/app/services/translation/base.py`
-- `services/backend/app/tests/test_chat_service.py`
-
-Suggested check after the learner changes Python:
+Before committing, run from the repository root:
 
 ```bash
-cd services/backend
-uv run pytest app/tests/test_chat_service.py -q
-uv run mypy app/services/chat.py app/services/translation/base.py app/tests/test_chat_service.py
-uv run ruff check app/services/chat.py app/services/translation/base.py app/tests/test_chat_service.py
+git diff --check
+git status --short
 ```
 
-## Guidance For The Next Codex Session
+## Suggested Resume Prompt
 
-Default response style:
-
-- Respond in Portuguese.
-- Include a concise English improvement note in every response, either correcting the learner's wording or offering one practical tip.
-- Keep all repository artifacts in English.
-- Give findings first when reviewing code.
-- Do not patch Python files unless the user explicitly asks to override the learning workflow.
-- Give concepts, file pointers, behavior expectations, and commands.
-- Provide exact Python only if the learner explicitly asks for it.
-
-Useful current interpretation:
-
-- The current direction is good and the quality baseline is green.
-- The design should keep translation context independent enough that the provider does not need to import chat service internals.
-- If a `Message` class remains in `translation/base.py`, consider whether it should be named specifically as a translation context message later.
-- Keep the next step small: context update behavior is enough work for one checkpoint.
+```text
+Read AGENTS.md, services/backend/AGENTS.md, and docs/handoff/codex-current-state.md.
+Continue from the exact next step without discarding the current branch changes.
+Keep the guided Python learning workflow and respond in Portuguese with an English improvement note.
+```

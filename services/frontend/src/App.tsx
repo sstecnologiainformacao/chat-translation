@@ -4,6 +4,7 @@ import {
   ArrowRight,
   Languages,
   Lock,
+  LogOut,
   MessageCircle,
   Moon,
   Sun,
@@ -13,10 +14,12 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { ConnectionBadge } from "@/features/chat/ConnectionBadge";
+import { ConversationSidebar } from "@/features/chat/ConversationSidebar";
 import { MessageBubble } from "@/features/chat/MessageBubble";
 import { MessageInput } from "@/features/chat/MessageInput";
 import { MessageList } from "@/features/chat/MessageList";
 import { useChat } from "@/features/chat/useChat";
+import { useUnreadMessages } from "@/features/chat/useUnreadMessages";
 import { ApiError, login, register } from "@/lib/api";
 import { clearAuthToken, getAuthSession, saveAuthToken } from "@/lib/auth";
 import { SUPPORTED_LANGUAGES } from "@/lib/languages";
@@ -29,7 +32,6 @@ import {
 import type { LoginRequest } from "@/types/auth";
 
 type AuthMode = "login" | "register";
-type DeliveryMode = "private" | "public";
 
 const sampleMessages = [
   {
@@ -50,15 +52,28 @@ function App() {
   const [authSession, setAuthSession] = useState(() => getAuthSession());
   const [authMode, setAuthMode] = useState<AuthMode>("login");
   const [composerText, setComposerText] = useState("");
-  const [deliveryMode, setDeliveryMode] = useState<DeliveryMode>("public");
   const [loginError, setLoginError] = useState<string | null>(null);
-  const [privateRecipient, setPrivateRecipient] = useState("");
+  const [selectedRecipient, setSelectedRecipient] = useState<string | null>(
+    null,
+  );
   const [registerError, setRegisterError] = useState<string | null>(null);
   const [registerSuccess, setRegisterSuccess] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [theme, setTheme] = useState(() => getStoredTheme());
   const authToken = authSession?.token ?? null;
   const chat = useChat(authToken, authSession?.language ?? null);
+  const activeRecipient =
+    selectedRecipient !== null &&
+    chat.users.some((user) => user.nickname === selectedRecipient)
+      ? selectedRecipient
+      : null;
+  const activeConversationKey = activeRecipient ?? "general";
+  const unreadCounts = useUnreadMessages(
+    chat.messages,
+    authSession?.nickname ?? null,
+    activeConversationKey,
+    authToken,
+  );
 
   useEffect(() => {
     applyTheme(theme);
@@ -123,15 +138,14 @@ function App() {
     clearAuthToken();
     setAuthSession(null);
     setComposerText("");
-    setDeliveryMode("public");
     setLoginError(null);
-    setPrivateRecipient("");
+    setSelectedRecipient(null);
   }
 
   function handleSendMessage() {
     const sent =
-      deliveryMode === "private"
-        ? chat.sendPrivateMessage(privateRecipient, composerText)
+      activeRecipient !== null
+        ? chat.sendPrivateMessage(activeRecipient, composerText)
         : chat.sendPublicMessage(composerText);
 
     if (sent) {
@@ -144,18 +158,28 @@ function App() {
   }
 
   if (authSession !== null) {
+    const visibleMessages = chat.messages.filter((message) => {
+      if (activeRecipient === null) {
+        return message.conversationKind === "public";
+      }
+
+      return (
+        message.conversationKind === "private" &&
+        (message.senderNickname === activeRecipient ||
+          message.recipientNickname === activeRecipient)
+      );
+    });
+
     return (
       <main className="flex h-dvh flex-col overflow-hidden bg-background text-foreground">
-        <header className="shrink-0 border-b border-border bg-background/95 px-4 py-3 backdrop-blur sm:px-6">
-          <div className="mx-auto flex w-full max-w-5xl items-center justify-between gap-3">
+        <header className="shrink-0 border-b border-border bg-background px-4 py-3 sm:px-5">
+          <div className="flex w-full items-center justify-between gap-3">
             <div className="flex min-w-0 items-center gap-3">
               <span className="flex size-9 shrink-0 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                 <MessageCircle className="size-4" aria-hidden="true" />
               </span>
               <div className="min-w-0">
-                <h1 className="truncate text-base font-semibold">
-                  Public room
-                </h1>
+                <p className="truncate text-sm font-semibold">Babel Tower</p>
                 <p className="truncate text-xs text-muted-foreground">
                   {authSession.nickname} · {authSession.language}
                 </p>
@@ -180,66 +204,63 @@ function App() {
               <Button
                 type="button"
                 variant="outline"
-                size="sm"
+                size="icon"
                 onClick={handleSignOut}
+                aria-label="Sign out"
+                title="Sign out"
               >
-                Sign out
+                <LogOut className="size-4" aria-hidden="true" />
               </Button>
             </div>
           </div>
         </header>
 
-        <section className="flex min-h-0 flex-1 overflow-y-auto px-4 sm:px-6">
-          <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 py-4">
-            <MessageList messages={chat.messages} />
-          </div>
-        </section>
+        <div className="flex min-h-0 flex-1 flex-col md:flex-row">
+          <ConversationSidebar
+            currentNickname={authSession.nickname}
+            onSelect={(nickname) => {
+              setSelectedRecipient(nickname);
+              setComposerText("");
+            }}
+            selectedNickname={activeRecipient}
+            unreadCounts={unreadCounts}
+            users={chat.users}
+          />
 
-        <footer className="shrink-0 border-t border-border bg-background/95 px-4 py-3 backdrop-blur sm:px-6">
-          <div className="mx-auto flex w-full max-w-3xl flex-col gap-3">
-            <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-              <div className="flex shrink-0 rounded-lg border border-border p-1">
-                <Button
-                  type="button"
-                  variant={deliveryMode === "public" ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => setDeliveryMode("public")}
-                >
-                  Public
-                </Button>
-                <Button
-                  type="button"
-                  variant={deliveryMode === "private" ? "default" : "ghost"}
-                  size="sm"
-                  onClick={() => setDeliveryMode("private")}
-                >
-                  Private
-                </Button>
-              </div>
-              {deliveryMode === "private" ? (
-                <div className="min-w-0 flex-1 space-y-1">
-                  <Label htmlFor="private-recipient">Recipient nickname</Label>
-                  <Input
-                    id="private-recipient"
-                    onChange={(event) => setPrivateRecipient(event.target.value)}
-                    placeholder="maria"
-                    value={privateRecipient}
-                  />
-                </div>
-              ) : null}
+          <section className="flex min-h-0 min-w-0 flex-1 flex-col">
+            <div className="shrink-0 border-b border-border px-4 py-3 sm:px-6">
+              <h1 className="truncate text-base font-semibold">
+                {activeRecipient ?? "General"}
+              </h1>
+              <p className="text-xs text-muted-foreground">
+                {activeRecipient === null
+                  ? `${chat.users.length} ${chat.users.length === 1 ? "person" : "people"} online`
+                  : "Private conversation"}
+              </p>
             </div>
-            <MessageInput
-              onChange={setComposerText}
-              placeholder={
-                deliveryMode === "private"
-                  ? "Type a private message"
-                  : "Type a public message"
-              }
-              onSubmit={handleSendMessage}
-              value={composerText}
+
+            <MessageList
+              conversationKey={activeConversationKey}
+              currentNickname={authSession.nickname}
+              messages={visibleMessages}
             />
-          </div>
-        </footer>
+
+            <footer className="shrink-0 border-t border-border bg-background px-4 py-3 sm:px-6">
+              <div className="mx-auto w-full max-w-3xl">
+                <MessageInput
+                  onChange={setComposerText}
+                  placeholder={
+                    activeRecipient === null
+                      ? "Message General"
+                      : `Message ${activeRecipient}`
+                  }
+                  onSubmit={handleSendMessage}
+                  value={composerText}
+                />
+              </div>
+            </footer>
+          </section>
+        </div>
       </main>
     );
   }
@@ -253,7 +274,7 @@ function App() {
               <span className="flex size-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
                 <Languages className="size-4" aria-hidden="true" />
               </span>
-              Chat Translation
+              Babel Tower
             </div>
             <div className="flex items-center gap-2">
               <Button
@@ -281,7 +302,7 @@ function App() {
                 <Lock className="size-5" aria-hidden="true" />
               </div>
               <div>
-                <h1 className="text-3xl font-semibold tracking-tight">
+                <h1 className="text-3xl font-semibold">
                   {authMode === "login" ? "Join the room" : "Create account"}
                 </h1>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">
@@ -433,7 +454,9 @@ function App() {
                 setRegisterError(null);
               }}
             >
-              {authMode === "login" ? "Create a new account" : "Back to sign in"}
+              {authMode === "login"
+                ? "Create a new account"
+                : "Back to sign in"}
             </Button>
           </div>
 

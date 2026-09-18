@@ -103,12 +103,12 @@ Automated tests set their own values in `services/backend/app/tests/conftest.py`
 For manual backend runs, set these process environment variables:
 
 ```bash
-export CHAT_USER="test-user"
-export CHAT_PASSWORD="test-pass"
 export JWT_SECRET="aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa"
 export JWT_EXPIRES_MINUTES="60"
+export DATABASE_URL="postgresql+asyncpg://chat_translation:chat_translation_password@localhost:5432/chat_translation"
 export OPENAI_API_KEY="sk-your-local-key"
 export OPENAI_MODEL="gpt-5.4-mini"
+export IS_DEVELOPMENT="true"
 ```
 
 Never commit real secrets.
@@ -127,7 +127,8 @@ Run backend checks:
 ./scripts/check-backend.sh
 ```
 
-At the current handoff point, backend checks are expected to fail because the learner is in the middle of Phase 9 translation context work. See `docs/handoff/codex-current-state.md`.
+The backend quality baseline is expected to pass. See `docs/handoff/codex-current-state.md` for the
+current branch, exact test counts, and active work.
 
 ## Manual Backend Commands
 
@@ -198,4 +199,5 @@ pnpm --version
 
 If `git diff --check` fails, fix whitespace before committing.
 
-If tests fail during this handoff, check `docs/handoff/codex-current-state.md` before changing code. Some failures are expected because the current Python work is unfinished.
+If tests fail during a handoff, check `docs/handoff/codex-current-state.md` before changing code. It
+records the latest verified baseline and any intentionally unfinished work.

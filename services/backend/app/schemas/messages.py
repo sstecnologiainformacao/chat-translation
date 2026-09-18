@@ -3,18 +3,19 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 MessageText = str
+MAX_MESSAGE_LENGTH = 2000
 
 
 class ClientRoomMessage(BaseModel):
     type: Literal["room_message"] = "room_message"
     room: Literal["general"] = "general"
-    text: MessageText = Field(min_length=1, max_length=2000)
+    text: MessageText = Field(min_length=1, max_length=MAX_MESSAGE_LENGTH)
 
 
 class ClientPrivateMessage(BaseModel):
     type: Literal["private_message"] = "private_message"
     recipient_nickname: str = Field(min_length=1, max_length=40)
-    text: MessageText = Field(min_length=1, max_length=2000)
+    text: MessageText = Field(min_length=1, max_length=MAX_MESSAGE_LENGTH)
 
 
 ClientMessage = ClientRoomMessage | ClientPrivateMessage
@@ -50,6 +51,17 @@ class ServerSystemEventMessage(BaseModel):
     language: str | None = None
 
 
+class RoomParticipant(BaseModel):
+    nickname: str
+    language: str
+
+
+class ServerRoomPresenceMessage(BaseModel):
+    type: Literal["room_presence"] = "room_presence"
+    room: Literal["general"] = "general"
+    users: list[RoomParticipant]
+
+
 class ServerErrorMessage(BaseModel):
     type: Literal["error"] = "error"
     reason: Literal[
@@ -73,6 +85,7 @@ ServerMessage = (
     ServerRoomMessage
     | ServerPrivateMessage
     | ServerSystemEventMessage
+    | ServerRoomPresenceMessage
     | ServerErrorMessage
     | ServerRoomTranslationUpdateMessage
 )

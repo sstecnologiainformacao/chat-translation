@@ -16,9 +16,45 @@ describe("MessageInput", () => {
     await user.type(screen.getByLabelText("Message"), "Hello");
 
     expect(onChange).toHaveBeenLastCalledWith("Hello");
-    await user.click(screen.getByRole("button", { name: "Send" }));
+    await user.click(screen.getByRole("button", { name: "Send message" }));
 
     expect(onSubmit).toHaveBeenCalledOnce();
+  });
+
+  it("submits with Enter", async () => {
+    const onSubmit = vi.fn();
+    const user = userEvent.setup();
+
+    render(<TestMessageInput onChange={vi.fn()} onSubmit={onSubmit} />);
+
+    await user.type(screen.getByLabelText("Message"), "Hello{Enter}");
+
+    expect(onSubmit).toHaveBeenCalledOnce();
+  });
+
+  it("adds a new line with Shift+Enter", async () => {
+    const onSubmit = vi.fn();
+    const user = userEvent.setup();
+
+    render(<TestMessageInput onChange={vi.fn()} onSubmit={onSubmit} />);
+
+    await user.type(
+      screen.getByLabelText("Message"),
+      "Hello{Shift>}{Enter}{/Shift}world",
+    );
+
+    expect(onSubmit).not.toHaveBeenCalled();
+    expect(screen.getByLabelText("Message")).toHaveValue("Hello\nworld");
+  });
+
+  it("exposes the message length limit", () => {
+    render(<TestMessageInput onChange={vi.fn()} onSubmit={vi.fn()} />);
+
+    expect(screen.getByLabelText("Message")).toHaveAttribute(
+      "maxlength",
+      "2000",
+    );
+    expect(screen.getByText("0 / 2,000")).toBeInTheDocument();
   });
 });
 

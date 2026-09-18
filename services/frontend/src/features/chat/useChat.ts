@@ -4,11 +4,13 @@ import { buildWebSocketUrl } from "@/lib/api";
 import { useWebSocket, type WebSocketStatus } from "@/lib/useWebSocket";
 import type {
   RoomHistoryItem,
+  RoomParticipant,
   ServerMessage,
   ServerPrivateMessage,
   ServerRoomMessage,
   ServerRoomTranslationUpdateMessage,
 } from "@/types/messages";
+import { MAX_MESSAGE_LENGTH } from "@/types/messages";
 
 type TranslationStatus = "completed" | "failed" | "pending";
 type ConversationKind = "private" | "public";
@@ -35,6 +37,7 @@ export type UseChatResult = {
   sendPrivateMessage: (recipientNickname: string, text: string) => boolean;
   sendPublicMessage: (text: string) => boolean;
   status: WebSocketStatus;
+  users: RoomParticipant[];
 };
 
 export function useChat(
@@ -111,11 +114,23 @@ export function useChat(
     [envelopes, preferredLanguage],
   );
 
+  const users = useMemo(() => {
+    let currentUsers: RoomParticipant[] = [];
+
+    for (const message of envelopes) {
+      if (message.type === "room_presence") {
+        currentUsers = message.users;
+      }
+    }
+
+    return currentUsers;
+  }, [envelopes]);
+
   const sendPublicMessage = useCallback(
     (text: string) => {
       const trimmedText = text.trim();
 
-      if (!trimmedText) {
+      if (!trimmedText || trimmedText.length > MAX_MESSAGE_LENGTH) {
         return false;
       }
 
@@ -133,7 +148,11 @@ export function useChat(
       const trimmedRecipient = recipientNickname.trim();
       const trimmedText = text.trim();
 
-      if (!trimmedRecipient || !trimmedText) {
+      if (
+        !trimmedRecipient ||
+        !trimmedText ||
+        trimmedText.length > MAX_MESSAGE_LENGTH
+      ) {
         return false;
       }
 
@@ -152,6 +171,7 @@ export function useChat(
     sendPrivateMessage,
     sendPublicMessage,
     status,
+    users,
   };
 }
 

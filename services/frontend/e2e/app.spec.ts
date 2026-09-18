@@ -3,6 +3,8 @@ import { expect, test } from "@playwright/test";
 test("shows the initial login and public room preview", async ({ page }) => {
   await page.goto("/");
 
+  await expect(page).toHaveTitle("Babel Tower");
+  await expect(page.getByText("Babel Tower")).toBeVisible();
   await expect(
     page.getByRole("heading", { name: "Join the room" }),
   ).toBeVisible();

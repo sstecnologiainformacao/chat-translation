@@ -1,3 +1,5 @@
+export const MAX_MESSAGE_LENGTH = 2000;
+
 export type ClientRoomMessage = {
   type: "room_message";
   room: "general";
@@ -50,6 +52,17 @@ export type ServerSystemEventMessage = {
   language?: string | null;
 };
 
+export type RoomParticipant = {
+  nickname: string;
+  language: string;
+};
+
+export type ServerRoomPresenceMessage = {
+  type: "room_presence";
+  room: "general";
+  users: RoomParticipant[];
+};
+
 export type ServerErrorMessage = {
   type: "error";
   reason:
@@ -79,6 +92,7 @@ export type ServerMessage =
   | ServerRoomMessage
   | ServerRoomTranslationUpdateMessage
   | ServerPrivateMessage
+  | ServerRoomPresenceMessage
   | ServerSystemEventMessage
   | ServerErrorMessage
   | ServerRoomHistoryMessage;
