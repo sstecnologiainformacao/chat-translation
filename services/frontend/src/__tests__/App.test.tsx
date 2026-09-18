@@ -47,6 +47,7 @@ describe("App", () => {
       sendPrivateMessage,
       sendPublicMessage,
       status: "open",
+      users: [],
     });
   });
 
@@ -57,6 +58,7 @@ describe("App", () => {
   it("renders the login form and public room preview", () => {
     render(<App />);
 
+    expect(screen.getByText("Babel Tower")).toBeInTheDocument();
     expect(
       screen.getByRole("heading", { name: "Join the room" }),
     ).toBeInTheDocument();
@@ -71,13 +73,11 @@ describe("App", () => {
 
   it("logs in, saves the token, and shows the full-page chat", async () => {
     mockedLogin.mockResolvedValue({ token: "jwt-token" });
-    mockedGetAuthSession
-      .mockReturnValueOnce(null)
-      .mockReturnValueOnce({
-        language: "Portuguese",
-        nickname: "joao",
-        token: "jwt-token",
-      });
+    mockedGetAuthSession.mockReturnValueOnce(null).mockReturnValueOnce({
+      language: "Portuguese",
+      nickname: "joao",
+      token: "jwt-token",
+    });
     const user = userEvent.setup();
 
     render(<App />);
@@ -92,8 +92,9 @@ describe("App", () => {
     });
     expect(mockedSaveAuthToken).toHaveBeenCalledWith("jwt-token");
     expect(
-      await screen.findByRole("heading", { name: "Public room" }),
+      await screen.findByRole("heading", { name: "General" }),
     ).toBeInTheDocument();
+    expect(screen.getByText("Babel Tower")).toBeInTheDocument();
     expect(
       screen.getByRole("button", { name: "Sign out" }),
     ).toBeInTheDocument();
@@ -211,7 +212,7 @@ describe("App", () => {
       "Portuguese",
     );
     expect(
-      screen.getByRole("heading", { name: "Public room" }),
+      screen.getByRole("heading", { name: "General" }),
     ).toBeInTheDocument();
     expect(screen.getByText("joao · Portuguese")).toBeInTheDocument();
 
@@ -247,6 +248,7 @@ describe("App", () => {
       sendPrivateMessage,
       sendPublicMessage,
       status: "open",
+      users: [],
     });
 
     render(<App />);
@@ -267,7 +269,7 @@ describe("App", () => {
     render(<App />);
 
     await user.type(screen.getByLabelText("Message"), "Hello public room");
-    await user.click(screen.getByRole("button", { name: "Send" }));
+    await user.click(screen.getByRole("button", { name: "Send message" }));
 
     expect(sendPublicMessage).toHaveBeenCalledWith("Hello public room");
     expect(screen.getByLabelText("Message")).toHaveValue("");
@@ -279,15 +281,25 @@ describe("App", () => {
       nickname: "joao",
       token: "stored-token",
     });
+    mockedUseChat.mockReturnValue({
+      closeReason: null,
+      messages: [],
+      sendPrivateMessage,
+      sendPublicMessage,
+      status: "open",
+      users: [
+        { nickname: "joao", language: "Portuguese" },
+        { nickname: "maria", language: "English" },
+      ],
+    });
     sendPrivateMessage.mockReturnValue(true);
     const user = userEvent.setup();
 
     render(<App />);
 
-    await user.click(screen.getByRole("button", { name: "Private" }));
-    await user.type(screen.getByLabelText("Recipient nickname"), "maria");
+    await user.click(screen.getByRole("button", { name: "maria, English" }));
     await user.type(screen.getByLabelText("Message"), "Hello Maria");
-    await user.click(screen.getByRole("button", { name: "Send" }));
+    await user.click(screen.getByRole("button", { name: "Send message" }));
 
     expect(sendPrivateMessage).toHaveBeenCalledWith("maria", "Hello Maria");
     expect(screen.getByLabelText("Message")).toHaveValue("");

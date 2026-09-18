@@ -1,5 +1,5 @@
 import { render, screen } from "@testing-library/react";
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { MessageList } from "@/features/chat/MessageList";
 import type { ChatMessage } from "@/features/chat/useChat";
@@ -15,16 +15,33 @@ const message: ChatMessage = {
   sentAt: "2026-08-11T12:00:00Z",
   translationStatus: "completed",
 };
+const scrollIntoViewDescriptor = Object.getOwnPropertyDescriptor(
+  Element.prototype,
+  "scrollIntoView",
+);
 
 describe("MessageList", () => {
-  it("renders an empty state when no messages exist", () => {
-    render(<MessageList messages={[]} />);
+  afterEach(() => {
+    if (scrollIntoViewDescriptor) {
+      Object.defineProperty(
+        Element.prototype,
+        "scrollIntoView",
+        scrollIntoViewDescriptor,
+      );
+      return;
+    }
 
-    expect(screen.getByText("No messages yet.")).toBeInTheDocument();
+    Reflect.deleteProperty(Element.prototype, "scrollIntoView");
+  });
+
+  it("renders an empty state when no messages exist", () => {
+    render(<MessageList currentNickname="joao" messages={[]} />);
+
+    expect(screen.getByText("Start the conversation.")).toBeInTheDocument();
   });
 
   it("renders public chat messages", () => {
-    render(<MessageList messages={[message]} />);
+    render(<MessageList currentNickname="joao" messages={[message]} />);
 
     expect(screen.getByText("Hello")).toBeInTheDocument();
     expect(screen.getByText("Original: Ola")).toBeInTheDocument();
@@ -33,6 +50,7 @@ describe("MessageList", () => {
   it("renders private chat messages", () => {
     render(
       <MessageList
+        currentNickname="joao"
         messages={[
           {
             ...message,
@@ -44,5 +62,38 @@ describe("MessageList", () => {
     );
 
     expect(screen.getByText("Private to maria")).toBeInTheDocument();
+  });
+
+  it("scrolls to the bottom when a new message arrives", () => {
+    const scrollIntoView = vi.fn();
+    Object.defineProperty(Element.prototype, "scrollIntoView", {
+      configurable: true,
+      value: scrollIntoView,
+    });
+    const { rerender } = render(
+      <MessageList currentNickname="joao" messages={[message]} />,
+    );
+    scrollIntoView.mockClear();
+
+    rerender(
+      <MessageList
+        currentNickname="joao"
+        messages={[
+          message,
+          {
+            ...message,
+            displayText: "Welcome",
+            id: "msg-2",
+            originalText: "Bem-vindo",
+          },
+        ]}
+      />,
+    );
+
+    expect(scrollIntoView).toHaveBeenCalledOnce();
+    expect(scrollIntoView).toHaveBeenCalledWith({
+      behavior: "smooth",
+      block: "end",
+    });
   });
 });

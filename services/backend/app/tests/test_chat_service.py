@@ -3,6 +3,7 @@ import json
 import logging
 
 import pytest
+from starlette.websockets import WebSocketDisconnect
 
 from app.repositories.base import StoredMessage
 from app.repositories.in_memory import InMemoryMessageRepository
@@ -59,6 +60,11 @@ class DummyWebSocket:
 
     async def send_json(self, data: dict[str, object]) -> None:
         self.sent.append(data)
+
+
+class DisconnectedWebSocket:
+    async def send_json(self, data: dict[str, object]) -> None:
+        raise WebSocketDisconnect()
 
 
 async def test_connect_tracks_active_connection() -> None:
@@ -124,6 +130,55 @@ async def test_join_room_tracks_room_membership() -> None:
     assert manager.room_connection_count("room:general") == 1
 
 
+async def test_room_participants_are_sorted_by_nickname() -> None:
+    manager = ConnectionManager(max_connections=10)
+    maria = await manager.connect(DummyWebSocket(), nickname="maria", language="English")
+    ana = await manager.connect(DummyWebSocket(), nickname="Ana", language="Spanish")
+    await manager.join_room(maria, room="room:general")
+    await manager.join_room(ana, room="room:general")
+
+    assert manager.room_participants("room:general") == [
+        {"nickname": "Ana", "language": "Spanish"},
+        {"nickname": "maria", "language": "English"},
+    ]
+
+
+async def test_room_participants_deduplicate_multiple_user_connections() -> None:
+    manager = ConnectionManager(max_connections=10)
+    first = await manager.connect(DummyWebSocket(), nickname="joao", language="Portuguese")
+    second = await manager.connect(DummyWebSocket(), nickname="joao", language="Portuguese")
+    await manager.join_room(first, room="room:general")
+    await manager.join_room(second, room="room:general")
+
+    assert manager.room_participants("room:general") == [
+        {"nickname": "joao", "language": "Portuguese"}
+    ]
+
+
+async def test_broadcast_room_presence_sends_current_participants() -> None:
+    manager = ConnectionManager(max_connections=10)
+    service = ChatService(manager, FakeTranslator(), InMemoryMessageRepository())
+    ws_joao = DummyWebSocket()
+    ws_maria = DummyWebSocket()
+    joao = await manager.connect(ws_joao, nickname="joao", language="Portuguese")
+    maria = await manager.connect(ws_maria, nickname="maria", language="English")
+    await manager.join_room(joao, room="room:general")
+    await manager.join_room(maria, room="room:general")
+
+    await service.broadcast_room_presence(room="general")
+
+    expected = {
+        "type": "room_presence",
+        "room": "general",
+        "users": [
+            {"nickname": "joao", "language": "Portuguese"},
+            {"nickname": "maria", "language": "English"},
+        ],
+    }
+    assert ws_joao.sent == [expected]
+    assert ws_maria.sent == [expected]
+
+
 async def test_leave_room_removes_room_membership() -> None:
     manager = ConnectionManager(max_connections=10)
     ws = DummyWebSocket()
@@ -164,6 +219,24 @@ async def test_broadcast_to_room_sends_only_to_room_members() -> None:
     assert ws_joao.sent == [message]
     assert ws_maria.sent == [message]
     assert ws_ana.sent == []
+
+
+async def test_broadcast_to_room_removes_disconnected_members() -> None:
+    manager = ConnectionManager(max_connections=10)
+    active_socket = DummyWebSocket()
+    disconnected = await manager.connect(
+        DisconnectedWebSocket(), nickname="offline", language="English"
+    )
+    active = await manager.connect(active_socket, nickname="active", language="Portuguese")
+    await manager.join_room(disconnected, room="room:general")
+    await manager.join_room(active, room="room:general")
+    message: dict[str, object] = {"type": "room_presence"}
+
+    await manager.broadcast_to_room("room:general", message)
+
+    assert active_socket.sent == [message]
+    assert manager.connection_count() == 1
+    assert manager.room_connection_count("room:general") == 1
 
 
 async def test_find_existing_connection_by_nickname() -> None:

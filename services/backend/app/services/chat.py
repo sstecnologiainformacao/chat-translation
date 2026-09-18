@@ -1,6 +1,8 @@
 from time import perf_counter_ns
 from typing import Protocol
 
+from starlette.websockets import WebSocketDisconnect
+
 from app.repositories.base import MessageRepository, StoredMessage
 from app.services.translation.base import (
     Message,
@@ -101,12 +103,29 @@ class ConnectionManager:
     async def broadcast_to_room(self, room: str, message: dict[str, object]) -> None:
         conversation: Conversation = self._rooms.get(room, Conversation(key=room))
 
-        for connection in conversation.connections:
-            await self.send_to(connection, message)
+        for connection in tuple(conversation.connections):
+            try:
+                await self.send_to(connection, message)
+            except (RuntimeError, WebSocketDisconnect):
+                await self.disconnect(connection)
 
     def room_connection_count(self, room: str) -> int:
         conversation: Conversation = self._rooms.get(room, Conversation(key=room))
         return len(conversation.connections)
+
+    def room_participants(self, room: str) -> list[dict[str, str]]:
+        conversation = self._rooms.get(room)
+        if conversation is None:
+            return []
+
+        participants = {
+            connection.nickname: {
+                "nickname": connection.nickname,
+                "language": connection.language,
+            }
+            for connection in conversation.connections
+        }
+        return sorted(participants.values(), key=lambda item: item["nickname"].casefold())
 
     async def send_to(
         self,
@@ -649,3 +668,14 @@ class ChatService:
 
     async def disconnect(self, connection: ActiveConnection) -> None:
         await self._manager.disconnect(connection=connection)
+
+    async def broadcast_room_presence(self, *, room: str) -> None:
+        room_key = self.build_room_key(room)
+        await self._manager.broadcast_to_room(
+            room_key,
+            {
+                "type": "room_presence",
+                "room": room,
+                "users": self._manager.room_participants(room_key),
+            },
+        )

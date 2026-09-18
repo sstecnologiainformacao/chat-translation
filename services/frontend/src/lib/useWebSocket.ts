@@ -63,10 +63,16 @@ export function useWebSocket<TMessage = unknown>(
     socketRef.current = socket;
 
     socket.onopen = () => {
+      if (socketRef.current !== socket) {
+        return;
+      }
       dispatch({ type: "open" });
     };
 
     socket.onmessage = (event) => {
+      if (socketRef.current !== socket) {
+        return;
+      }
       dispatch({
         type: "message",
         message: JSON.parse(String(event.data)) as TMessage,
@@ -74,13 +80,18 @@ export function useWebSocket<TMessage = unknown>(
     };
 
     socket.onclose = (event) => {
+      if (socketRef.current !== socket) {
+        return;
+      }
       dispatch({ type: "closed", reason: event.reason || null });
       socketRef.current = null;
     };
 
     return () => {
       socket.close();
-      socketRef.current = null;
+      if (socketRef.current === socket) {
+        socketRef.current = null;
+      }
     };
   }, [url]);
 

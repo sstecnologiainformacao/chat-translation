@@ -1,6 +1,18 @@
+from typing import Any
+
 import pytest
 from fastapi.testclient import TestClient
+from starlette.testclient import WebSocketTestSession
 from starlette.websockets import WebSocketDisconnect
+
+
+def receive_message_type(websocket: WebSocketTestSession, expected_type: str) -> dict[str, Any]:
+    for _ in range(10):
+        message: dict[str, Any] = websocket.receive_json()
+        if message.get("type") == expected_type:
+            return message
+
+    raise AssertionError(f"Did not receive WebSocket message type: {expected_type}")
 
 
 def test_websocket_rejects_missing_token(client: TestClient) -> None:
@@ -28,6 +40,21 @@ def test_websocket_accepts_valid_token(client: TestClient) -> None:
         pass
 
 
+def test_websocket_sends_current_room_presence(client: TestClient) -> None:
+    from app.core.security import encode_jwt
+
+    token = encode_jwt(nickname="joao", language="Portuguese")
+
+    with client.websocket_connect(f"/ws/chat?token={token}") as websocket:
+        message = receive_message_type(websocket, "room_presence")
+
+    assert message == {
+        "type": "room_presence",
+        "room": "general",
+        "users": [{"nickname": "joao", "language": "Portuguese"}],
+    }
+
+
 def test_websocket_returns_error_for_malformed_payload(client: TestClient) -> None:
     from app.core.security import encode_jwt
 
@@ -35,7 +62,7 @@ def test_websocket_returns_error_for_malformed_payload(client: TestClient) -> No
 
     with client.websocket_connect(f"/ws/chat?token={token}") as websocket:
         websocket.send_json({"type": "unknown"})
-        message = websocket.receive_json()
+        message = receive_message_type(websocket, "error")
 
     assert message == {
         "type": "error",
@@ -50,7 +77,7 @@ def test_websocket_routes_room_message_chat_service(client: TestClient) -> None:
 
     with client.websocket_connect(f"/ws/chat?token={token}") as websocket:
         websocket.send_json({"type": "room_message", "room": "general", "text": "Hello"})
-        message = websocket.receive_json()
+        message = receive_message_type(websocket, "room_message")
 
     assert message["type"] == "room_message"
     assert message["room"] == "general"
@@ -76,7 +103,7 @@ def test_websocket_routes_private_message_recipient_not_found(client: TestClient
                 "text": "Hello",
             }
         )
-        message = websocket.receive_json()
+        message = receive_message_type(websocket, "error")
 
     assert message == {
         "type": "error",
@@ -99,8 +126,8 @@ def test_websocket_routes_private_message_both_receive_message(client: TestClien
                     "text": "Hello",
                 }
             )
-            message_joao = websocket_joao.receive_json()
-            message_maria = websocket_maria.receive_json()
+            message_joao = receive_message_type(websocket_joao, "private_message")
+            message_maria = receive_message_type(websocket_maria, "private_message")
 
     assert message_joao["type"] == "private_message"
     assert message_joao["sender_nickname"] == "joao"
@@ -138,8 +165,8 @@ def test_websocket_routes_private_message_only_both_receive_message(client: Test
                         "text": "Hello",
                     }
                 )
-                message_joao = websocket_joao.receive_json()
-                message_maria = websocket_maria.receive_json()
+                message_joao = receive_message_type(websocket_joao, "private_message")
+                message_maria = receive_message_type(websocket_maria, "private_message")
 
     assert message_joao["type"] == "private_message"
     assert message_joao["sender_nickname"] == "joao"

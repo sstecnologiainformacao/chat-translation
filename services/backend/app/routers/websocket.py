@@ -4,7 +4,7 @@ from time import perf_counter_ns
 
 from fastapi import APIRouter, WebSocket, status
 from pydantic import TypeAdapter, ValidationError
-from starlette.websockets import WebSocketDisconnect
+from starlette.websockets import WebSocketDisconnect, WebSocketState
 
 from app.core.security import InvalidTokenError, decode_jwt
 from app.schemas.auth import TokenPayload
@@ -28,18 +28,17 @@ async def chat_websocket(websocket: WebSocket, token: str | None = None) -> None
         await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
         return
 
+    chat = websocket.app.state.chat_service
+    connection = None
+
     try:
-        chat = websocket.app.state.chat_service
         await websocket.accept()
         connection = await chat.connect(
             websocket, nickname=token_payload.nickname, language=token_payload.language
         )
         await chat.join_room(connection, room="general")
-    except ConnectionLimitReachedError:
-        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
-        return
+        await chat.broadcast_room_presence(room="general")
 
-    try:
         while True:
             payload = await websocket.receive_json()
             message_received_ns = perf_counter_ns()
@@ -73,6 +72,18 @@ async def chat_websocket(websocket: WebSocket, token: str | None = None) -> None
             except ValidationError:
                 await websocket.send_json({"type": "error", "reason": "malformed_payload"})
 
+    except ConnectionLimitReachedError:
+        await websocket.close(code=status.WS_1008_POLICY_VIOLATION)
     except WebSocketDisconnect:
-        await chat.disconnect(connection)
-        return
+        if connection is not None:
+            await chat.disconnect(connection)
+            await chat.broadcast_room_presence(room="general")
+    except RuntimeError:
+        if (
+            websocket.client_state is WebSocketState.CONNECTED
+            and websocket.application_state is WebSocketState.CONNECTED
+        ):
+            raise
+        if connection is not None:
+            await chat.disconnect(connection)
+            await chat.broadcast_room_presence(room="general")

@@ -214,6 +214,36 @@ describe("useChat", () => {
     ]);
   });
 
+  it("uses the latest room presence snapshot", () => {
+    mockedUseWebSocket.mockReturnValue({
+      closeReason: null,
+      messages: [
+        {
+          type: "room_presence",
+          room: "general",
+          users: [{ nickname: "joao", language: "Portuguese" }],
+        },
+        {
+          type: "room_presence",
+          room: "general",
+          users: [
+            { nickname: "joao", language: "Portuguese" },
+            { nickname: "maria", language: "English" },
+          ],
+        },
+      ] satisfies ServerMessage[],
+      sendJson,
+      status: "open",
+    });
+
+    const { result } = renderHook(() => useChat("jwt-token", "English"));
+
+    expect(result.current.users).toEqual([
+      { nickname: "joao", language: "Portuguese" },
+      { nickname: "maria", language: "English" },
+    ]);
+  });
+
   it("sends trimmed public room messages", () => {
     const { result } = renderHook(() => useChat("jwt-token", "English"));
 
@@ -223,6 +253,13 @@ describe("useChat", () => {
       room: "general",
       text: "Hello",
     });
+  });
+
+  it("does not send messages above the character limit", () => {
+    const { result } = renderHook(() => useChat("jwt-token", "English"));
+
+    expect(result.current.sendPublicMessage("a".repeat(2001))).toBe(false);
+    expect(sendJson).not.toHaveBeenCalled();
   });
 
   it("sends trimmed private messages", () => {
