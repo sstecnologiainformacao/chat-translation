@@ -390,6 +390,59 @@ async def test_send_private_message_returns_error_when_recipient_is_missing() ->
     assert ws_joao.sent == [expected_message]
 
 
+async def test_send_typing_status_broadcasts_to_room_except_sender() -> None:
+    manager = ConnectionManager(max_connections=10)
+    service = ChatService(manager, FakeTranslator(), InMemoryMessageRepository())
+    ws_joao = DummyWebSocket()
+    ws_maria = DummyWebSocket()
+    ws_ana = DummyWebSocket()
+    joao = await service.connect(ws_joao, nickname="joao", language="Portuguese")
+    maria = await service.connect(ws_maria, nickname="maria", language="English")
+    ana = await service.connect(ws_ana, nickname="ana", language="Spanish")
+    await service.join_room(joao, room="general")
+    await service.join_room(maria, room="general")
+    await service.join_room(ana, room="general")
+    ws_joao.sent.clear()
+    ws_maria.sent.clear()
+    ws_ana.sent.clear()
+
+    await service.send_typing_status(joao, recipient_nickname=None, is_typing=True)
+
+    expected = {
+        "type": "typing",
+        "nickname": "joao",
+        "recipient_nickname": None,
+        "is_typing": True,
+    }
+    assert ws_joao.sent == []
+    assert ws_maria.sent == [expected]
+    assert ws_ana.sent == [expected]
+
+
+async def test_send_typing_status_sends_only_to_private_recipient() -> None:
+    manager = ConnectionManager(max_connections=10)
+    service = ChatService(manager, FakeTranslator(), InMemoryMessageRepository())
+    ws_joao = DummyWebSocket()
+    ws_maria = DummyWebSocket()
+    ws_ana = DummyWebSocket()
+    joao = await service.connect(ws_joao, nickname="joao", language="Portuguese")
+    await service.connect(ws_maria, nickname="maria", language="English")
+    await service.connect(ws_ana, nickname="ana", language="Spanish")
+
+    await service.send_typing_status(joao, recipient_nickname="maria", is_typing=True)
+
+    assert ws_joao.sent == []
+    assert ws_maria.sent == [
+        {
+            "type": "typing",
+            "nickname": "joao",
+            "recipient_nickname": "maria",
+            "is_typing": True,
+        }
+    ]
+    assert ws_ana.sent == []
+
+
 async def test_send_room_message_broadcasts_to_room_members() -> None:
     manager = ConnectionManager(max_connections=10)
     service = ChatService(manager, FakeTranslator(), InMemoryMessageRepository())

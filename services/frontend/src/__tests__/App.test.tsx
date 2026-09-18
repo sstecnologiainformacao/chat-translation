@@ -35,6 +35,7 @@ const mockedSaveAuthToken = vi.mocked(saveAuthToken);
 const mockedUseChat = vi.mocked(useChat);
 const sendPrivateMessage = vi.fn();
 const sendPublicMessage = vi.fn();
+const sendTypingStatus = vi.fn();
 
 describe("App", () => {
   beforeEach(() => {
@@ -46,7 +47,9 @@ describe("App", () => {
       messages: [],
       sendPrivateMessage,
       sendPublicMessage,
+      sendTypingStatus,
       status: "open",
+      typingParticipants: [],
       users: [],
     });
   });
@@ -247,7 +250,9 @@ describe("App", () => {
       ],
       sendPrivateMessage,
       sendPublicMessage,
+      sendTypingStatus,
       status: "open",
+      typingParticipants: [],
       users: [],
     });
 
@@ -286,7 +291,9 @@ describe("App", () => {
       messages: [],
       sendPrivateMessage,
       sendPublicMessage,
+      sendTypingStatus,
       status: "open",
+      typingParticipants: [],
       users: [
         { nickname: "joao", language: "Portuguese" },
         { nickname: "maria", language: "English" },
@@ -303,6 +310,31 @@ describe("App", () => {
 
     expect(sendPrivateMessage).toHaveBeenCalledWith("maria", "Hello Maria");
     expect(screen.getByLabelText("Message")).toHaveValue("");
+  });
+
+  it("shows typing activity for the active conversation", () => {
+    mockedGetAuthSession.mockReturnValue({
+      language: "Portuguese",
+      nickname: "joao",
+      token: "stored-token",
+    });
+    mockedUseChat.mockReturnValue({
+      closeReason: null,
+      messages: [],
+      sendPrivateMessage,
+      sendPublicMessage,
+      sendTypingStatus,
+      status: "open",
+      typingParticipants: [{ nickname: "maria", recipientNickname: null }],
+      users: [
+        { nickname: "joao", language: "Portuguese" },
+        { nickname: "maria", language: "English" },
+      ],
+    });
+
+    render(<App />);
+
+    expect(screen.getByRole("status")).toHaveTextContent("maria is typing...");
   });
 
   it("toggles dark mode", async () => {

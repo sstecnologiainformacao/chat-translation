@@ -18,7 +18,13 @@ class ClientPrivateMessage(BaseModel):
     text: MessageText = Field(min_length=1, max_length=MAX_MESSAGE_LENGTH)
 
 
-ClientMessage = ClientRoomMessage | ClientPrivateMessage
+class ClientTypingMessage(BaseModel):
+    type: Literal["typing"] = "typing"
+    recipient_nickname: str | None = Field(default=None, min_length=1, max_length=40)
+    is_typing: bool
+
+
+ClientMessage = ClientRoomMessage | ClientPrivateMessage | ClientTypingMessage
 
 
 class ServerRoomMessage(BaseModel):
@@ -62,6 +68,13 @@ class ServerRoomPresenceMessage(BaseModel):
     users: list[RoomParticipant]
 
 
+class ServerTypingMessage(BaseModel):
+    type: Literal["typing"] = "typing"
+    nickname: str
+    recipient_nickname: str | None = None
+    is_typing: bool
+
+
 class ServerErrorMessage(BaseModel):
     type: Literal["error"] = "error"
     reason: Literal[
@@ -86,6 +99,7 @@ ServerMessage = (
     | ServerPrivateMessage
     | ServerSystemEventMessage
     | ServerRoomPresenceMessage
+    | ServerTypingMessage
     | ServerErrorMessage
     | ServerRoomTranslationUpdateMessage
 )

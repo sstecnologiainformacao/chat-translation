@@ -100,10 +100,18 @@ class ConnectionManager:
         if conversation is not None:
             conversation.remove_connection(connection)
 
-    async def broadcast_to_room(self, room: str, message: dict[str, object]) -> None:
+    async def broadcast_to_room(
+        self,
+        room: str,
+        message: dict[str, object],
+        *,
+        exclude: ActiveConnection | None = None,
+    ) -> None:
         conversation: Conversation = self._rooms.get(room, Conversation(key=room))
 
         for connection in tuple(conversation.connections):
+            if connection is exclude:
+                continue
             try:
                 await self.send_to(connection, message)
             except (RuntimeError, WebSocketDisconnect):
@@ -367,6 +375,32 @@ class ChatService:
         finally:
             diagnostics.handler_total_ms = elapsed_ms(received_ns)
             emit_translation_performance(diagnostics)
+
+    async def send_typing_status(
+        self,
+        sender: ActiveConnection,
+        *,
+        recipient_nickname: str | None,
+        is_typing: bool,
+    ) -> None:
+        message: dict[str, object] = {
+            "type": "typing",
+            "nickname": sender.nickname,
+            "recipient_nickname": recipient_nickname,
+            "is_typing": is_typing,
+        }
+
+        if recipient_nickname is None:
+            await self._manager.broadcast_to_room(
+                self._get_key_room_general(),
+                message,
+                exclude=sender,
+            )
+            return
+
+        recipient = self._manager.find_by_nickname(recipient_nickname)
+        if recipient is not None:
+            await self._manager.send_to(recipient, message)
 
     async def send_room_message(
         self,

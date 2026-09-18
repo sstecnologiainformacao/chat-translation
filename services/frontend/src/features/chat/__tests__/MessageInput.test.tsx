@@ -1,11 +1,15 @@
 import { useState } from "react";
-import { render, screen } from "@testing-library/react";
+import { act, fireEvent, render, screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 
 import { MessageInput } from "@/features/chat/MessageInput";
 
 describe("MessageInput", () => {
+  afterEach(() => {
+    vi.useRealTimers();
+  });
+
   it("notifies text changes and submit actions", async () => {
     const onChange = vi.fn();
     const onSubmit = vi.fn();
@@ -56,14 +60,63 @@ describe("MessageInput", () => {
     );
     expect(screen.getByText("0 / 2,000")).toBeInTheDocument();
   });
+
+  it("reports typing activity and stops after inactivity", () => {
+    vi.useFakeTimers();
+    const onTypingChange = vi.fn();
+    render(
+      <TestMessageInput
+        onChange={vi.fn()}
+        onSubmit={vi.fn()}
+        onTypingChange={onTypingChange}
+      />,
+    );
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Message" }), {
+      target: { value: "H" },
+    });
+    expect(onTypingChange).toHaveBeenLastCalledWith(true);
+
+    act(() => {
+      vi.advanceTimersByTime(1500);
+    });
+
+    expect(onTypingChange).toHaveBeenLastCalledWith(false);
+  });
+
+  it("stops typing when the message is submitted", () => {
+    const onTypingChange = vi.fn();
+    render(
+      <TestMessageInput
+        onChange={vi.fn()}
+        onSubmit={vi.fn()}
+        onTypingChange={onTypingChange}
+      />,
+    );
+
+    fireEvent.change(screen.getByRole("textbox", { name: "Message" }), {
+      target: { value: "Hello" },
+    });
+    fireEvent.submit(
+      screen.getByRole("textbox", { name: "Message" }).closest("form")!,
+    );
+
+    expect(onTypingChange).toHaveBeenNthCalledWith(1, true);
+    expect(onTypingChange).toHaveBeenNthCalledWith(2, false);
+  });
 });
 
 type TestMessageInputProps = {
   onChange: (value: string) => void;
   onSubmit: () => void;
+  onTypingChange?: (isTyping: boolean) => void;
 };
 
-function TestMessageInput({ onChange, onSubmit }: TestMessageInputProps) {
+function TestMessageInput({
+  onChange,
+  onSubmit,
+  onTypingChange,
+}: TestMessageInputProps) {
   const [value, setValue] = useState("");
 
   function handleChange(nextValue: string) {
@@ -72,6 +125,11 @@ function TestMessageInput({ onChange, onSubmit }: TestMessageInputProps) {
   }
 
   return (
-    <MessageInput onChange={handleChange} onSubmit={onSubmit} value={value} />
+    <MessageInput
+      onChange={handleChange}
+      onSubmit={onSubmit}
+      onTypingChange={onTypingChange}
+      value={value}
+    />
   );
 }

@@ -27,6 +27,11 @@ export type ChatMessage = {
   translationStatus: TranslationStatus;
 };
 
+export type TypingParticipant = {
+  nickname: string;
+  recipientNickname: string | null;
+};
+
 type ChatMessageState = ChatMessage & {
   translations: Record<string, string>;
 };
@@ -36,7 +41,12 @@ export type UseChatResult = {
   messages: ChatMessage[];
   sendPrivateMessage: (recipientNickname: string, text: string) => boolean;
   sendPublicMessage: (text: string) => boolean;
+  sendTypingStatus: (
+    recipientNickname: string | null,
+    isTyping: boolean,
+  ) => boolean;
   status: WebSocketStatus;
+  typingParticipants: TypingParticipant[];
   users: RoomParticipant[];
 };
 
@@ -53,66 +63,63 @@ export function useChat(
     status,
   } = useWebSocket<ServerMessage>(socketUrl);
 
-  const messages = useMemo(
-    () => {
-      const orderedMessages: ChatMessageState[] = [];
-      const messageIndexes = new Map<string, number>();
+  const messages = useMemo(() => {
+    const orderedMessages: ChatMessageState[] = [];
+    const messageIndexes = new Map<string, number>();
 
-      for (const message of envelopes) {
-        if (message.type === "room_history") {
-          for (const historyItem of message.messages) {
-            const chatMessage = toChatMessage(
-              historyItem,
-              preferredLanguage,
-              "completed",
-            );
-            messageIndexes.set(chatMessage.id, orderedMessages.length);
-            orderedMessages.push(chatMessage);
-          }
-          continue;
-        }
-
-        if (message.type === "room_message") {
+    for (const message of envelopes) {
+      if (message.type === "room_history") {
+        for (const historyItem of message.messages) {
           const chatMessage = toChatMessage(
-            message,
-            preferredLanguage,
-            getInitialTranslationStatus(message, preferredLanguage),
-          );
-          messageIndexes.set(chatMessage.id, orderedMessages.length);
-          orderedMessages.push(chatMessage);
-          continue;
-        }
-
-        if (message.type === "private_message") {
-          const chatMessage = toChatMessage(
-            message,
+            historyItem,
             preferredLanguage,
             "completed",
           );
           messageIndexes.set(chatMessage.id, orderedMessages.length);
           orderedMessages.push(chatMessage);
+        }
+        continue;
+      }
+
+      if (message.type === "room_message") {
+        const chatMessage = toChatMessage(
+          message,
+          preferredLanguage,
+          getInitialTranslationStatus(message, preferredLanguage),
+        );
+        messageIndexes.set(chatMessage.id, orderedMessages.length);
+        orderedMessages.push(chatMessage);
+        continue;
+      }
+
+      if (message.type === "private_message") {
+        const chatMessage = toChatMessage(
+          message,
+          preferredLanguage,
+          "completed",
+        );
+        messageIndexes.set(chatMessage.id, orderedMessages.length);
+        orderedMessages.push(chatMessage);
+        continue;
+      }
+
+      if (message.type === "room_translation_update") {
+        const existingIndex = messageIndexes.get(message.message_id);
+
+        if (existingIndex === undefined) {
           continue;
         }
 
-        if (message.type === "room_translation_update") {
-          const existingIndex = messageIndexes.get(message.message_id);
-
-          if (existingIndex === undefined) {
-            continue;
-          }
-
-          orderedMessages[existingIndex] = updateChatMessage(
-            orderedMessages[existingIndex],
-            message,
-            preferredLanguage,
-          );
-        }
+        orderedMessages[existingIndex] = updateChatMessage(
+          orderedMessages[existingIndex],
+          message,
+          preferredLanguage,
+        );
       }
+    }
 
-      return orderedMessages.map(toPublicChatMessage);
-    },
-    [envelopes, preferredLanguage],
-  );
+    return orderedMessages.map(toPublicChatMessage);
+  }, [envelopes, preferredLanguage]);
 
   const users = useMemo(() => {
     let currentUsers: RoomParticipant[] = [];
@@ -125,6 +132,45 @@ export function useChat(
 
     return currentUsers;
   }, [envelopes]);
+
+  const typingParticipants = useMemo(() => {
+    const activeParticipants = new Map<string, TypingParticipant>();
+
+    for (const message of envelopes) {
+      if (message.type === "typing") {
+        const key = buildTypingKey(
+          message.nickname,
+          message.recipient_nickname,
+        );
+        if (message.is_typing) {
+          activeParticipants.set(key, {
+            nickname: message.nickname,
+            recipientNickname: message.recipient_nickname,
+          });
+        } else {
+          activeParticipants.delete(key);
+        }
+        continue;
+      }
+
+      if (message.type === "room_message") {
+        activeParticipants.delete(
+          buildTypingKey(message.sender_nickname, null),
+        );
+      }
+
+      if (message.type === "private_message") {
+        activeParticipants.delete(
+          buildTypingKey(message.sender_nickname, message.recipient_nickname),
+        );
+      }
+    }
+
+    const connectedNicknames = new Set(users.map((user) => user.nickname));
+    return [...activeParticipants.values()].filter((participant) =>
+      connectedNicknames.has(participant.nickname),
+    );
+  }, [envelopes, users]);
 
   const sendPublicMessage = useCallback(
     (text: string) => {
@@ -165,14 +211,33 @@ export function useChat(
     [sendJson],
   );
 
+  const sendTypingStatus = useCallback(
+    (recipientNickname: string | null, isTyping: boolean) =>
+      sendJson({
+        type: "typing",
+        recipient_nickname: recipientNickname,
+        is_typing: isTyping,
+      }),
+    [sendJson],
+  );
+
   return {
     closeReason,
     messages,
     sendPrivateMessage,
     sendPublicMessage,
+    sendTypingStatus,
     status,
+    typingParticipants,
     users,
   };
+}
+
+function buildTypingKey(
+  nickname: string,
+  recipientNickname: string | null,
+): string {
+  return `${nickname}\u0000${recipientNickname ?? "general"}`;
 }
 
 function toPublicChatMessage(message: ChatMessageState): ChatMessage {

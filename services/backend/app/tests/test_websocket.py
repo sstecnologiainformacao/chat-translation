@@ -185,3 +185,28 @@ def test_websocket_routes_private_message_only_both_receive_message(client: Test
     assert message_maria["translations"] == {}
     assert len(message_maria["message_id"].strip())
     assert len(message_maria["sent_at"].strip())
+
+
+def test_websocket_routes_typing_status_to_room_participants(client: TestClient) -> None:
+    from app.core.security import encode_jwt
+
+    token_joao = encode_jwt(nickname="joao", language="Portuguese")
+    token_maria = encode_jwt(nickname="maria", language="English")
+
+    with client.websocket_connect(f"/ws/chat?token={token_joao}") as websocket_joao:
+        with client.websocket_connect(f"/ws/chat?token={token_maria}") as websocket_maria:
+            websocket_joao.send_json(
+                {
+                    "type": "typing",
+                    "recipient_nickname": None,
+                    "is_typing": True,
+                }
+            )
+            message = receive_message_type(websocket_maria, "typing")
+
+    assert message == {
+        "type": "typing",
+        "nickname": "joao",
+        "recipient_nickname": None,
+        "is_typing": True,
+    }

@@ -47,9 +47,8 @@ async def chat_websocket(websocket: WebSocket, token: str | None = None) -> None
                 validation_started_ns = perf_counter_ns()
                 validated: ClientMessage = client_message_adapter.validate_python(payload)
                 validation_ms = elapsed_ms(validation_started_ns)
-                now = datetime.now(UTC)
-                date_str = now.strftime("%Y-%m-%dT%H:%M:%SZ")
                 if validated.type == "room_message":
+                    date_str = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
                     await chat.send_room_message(
                         connection,
                         text=validated.text,
@@ -58,7 +57,8 @@ async def chat_websocket(websocket: WebSocket, token: str | None = None) -> None
                         message_received_ns=message_received_ns,
                         validation_ms=validation_ms,
                     )
-                if validated.type == "private_message":
+                elif validated.type == "private_message":
+                    date_str = datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
                     await chat.send_private_message(
                         connection,
                         recipient_nickname=validated.recipient_nickname,
@@ -67,6 +67,12 @@ async def chat_websocket(websocket: WebSocket, token: str | None = None) -> None
                         sent_at=date_str,
                         message_received_ns=message_received_ns,
                         validation_ms=validation_ms,
+                    )
+                elif validated.type == "typing":
+                    await chat.send_typing_status(
+                        connection,
+                        recipient_nickname=validated.recipient_nickname,
+                        is_typing=validated.is_typing,
                     )
 
             except ValidationError:

@@ -12,7 +12,14 @@ export type ClientPrivateMessage = {
   text: string;
 };
 
-export type ClientMessage = ClientRoomMessage | ClientPrivateMessage;
+export type ClientTypingMessage = {
+  type: "typing";
+  recipient_nickname: string | null;
+  is_typing: boolean;
+};
+
+export type ClientMessage =
+  ClientRoomMessage | ClientPrivateMessage | ClientTypingMessage;
 
 export type ServerRoomMessage = {
   type: "room_message";
@@ -63,6 +70,13 @@ export type ServerRoomPresenceMessage = {
   users: RoomParticipant[];
 };
 
+export type ServerTypingMessage = {
+  type: "typing";
+  nickname: string;
+  recipient_nickname: string | null;
+  is_typing: boolean;
+};
+
 export type ServerErrorMessage = {
   type: "error";
   reason:
@@ -93,6 +107,7 @@ export type ServerMessage =
   | ServerRoomTranslationUpdateMessage
   | ServerPrivateMessage
   | ServerRoomPresenceMessage
+  | ServerTypingMessage
   | ServerSystemEventMessage
   | ServerErrorMessage
   | ServerRoomHistoryMessage;

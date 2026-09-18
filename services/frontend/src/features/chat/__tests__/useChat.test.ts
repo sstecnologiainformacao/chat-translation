@@ -244,6 +244,81 @@ describe("useChat", () => {
     ]);
   });
 
+  it("tracks typing participants and clears them when a message arrives", () => {
+    mockedUseWebSocket.mockReturnValue({
+      closeReason: null,
+      messages: [
+        {
+          type: "room_presence",
+          room: "general",
+          users: [
+            { nickname: "joao", language: "Portuguese" },
+            { nickname: "maria", language: "English" },
+          ],
+        },
+        {
+          type: "typing",
+          nickname: "maria",
+          recipient_nickname: null,
+          is_typing: true,
+        },
+      ] satisfies ServerMessage[],
+      sendJson,
+      status: "open",
+    });
+
+    const { result, rerender } = renderHook(() =>
+      useChat("jwt-token", "English"),
+    );
+
+    expect(result.current.typingParticipants).toEqual([
+      { nickname: "maria", recipientNickname: null },
+    ]);
+
+    mockedUseWebSocket.mockReturnValue({
+      closeReason: null,
+      messages: [
+        {
+          type: "room_presence",
+          room: "general",
+          users: [{ nickname: "maria", language: "English" }],
+        },
+        {
+          type: "typing",
+          nickname: "maria",
+          recipient_nickname: null,
+          is_typing: true,
+        },
+        {
+          type: "room_message",
+          message_id: "msg-typing",
+          original_text: "Hello",
+          room: "general",
+          sender_language: "English",
+          sender_nickname: "maria",
+          sent_at: "2026-08-11T12:01:00Z",
+          translations: {},
+        },
+      ] satisfies ServerMessage[],
+      sendJson,
+      status: "open",
+    });
+    rerender();
+
+    expect(result.current.typingParticipants).toEqual([]);
+  });
+
+  it("sends typing status for the selected conversation", () => {
+    const { result } = renderHook(() => useChat("jwt-token", "English"));
+
+    expect(result.current.sendTypingStatus("maria", true)).toBe(true);
+    expect(sendJson).toHaveBeenCalledWith({
+      type: "typing",
+      recipient_nickname: "maria",
+      is_typing: true,
+    });
+  });
+
   it("sends trimmed public room messages", () => {
     const { result } = renderHook(() => useChat("jwt-token", "English"));
 

@@ -1,5 +1,5 @@
 import type { FormEvent } from "react";
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useState } from "react";
 import {
   ArrowRight,
   Languages,
@@ -18,6 +18,7 @@ import { ConversationSidebar } from "@/features/chat/ConversationSidebar";
 import { MessageBubble } from "@/features/chat/MessageBubble";
 import { MessageInput } from "@/features/chat/MessageInput";
 import { MessageList } from "@/features/chat/MessageList";
+import { TypingIndicator } from "@/features/chat/TypingIndicator";
 import { useChat } from "@/features/chat/useChat";
 import { useUnreadMessages } from "@/features/chat/useUnreadMessages";
 import { ApiError, login, register } from "@/lib/api";
@@ -62,6 +63,7 @@ function App() {
   const [theme, setTheme] = useState(() => getStoredTheme());
   const authToken = authSession?.token ?? null;
   const chat = useChat(authToken, authSession?.language ?? null);
+  const sendTypingStatus = chat.sendTypingStatus;
   const activeRecipient =
     selectedRecipient !== null &&
     chat.users.some((user) => user.nickname === selectedRecipient)
@@ -73,6 +75,24 @@ function App() {
     authSession?.nickname ?? null,
     activeConversationKey,
     authToken,
+  );
+  const typingNicknames = chat.typingParticipants
+    .filter((participant) => {
+      if (participant.nickname === authSession?.nickname) {
+        return false;
+      }
+
+      return activeRecipient === null
+        ? participant.recipientNickname === null
+        : participant.nickname === activeRecipient &&
+            participant.recipientNickname === authSession?.nickname;
+    })
+    .map((participant) => participant.nickname);
+  const handleTypingChange = useCallback(
+    (isTyping: boolean) => {
+      sendTypingStatus(activeRecipient, isTyping);
+    },
+    [activeRecipient, sendTypingStatus],
   );
 
   useEffect(() => {
@@ -247,7 +267,9 @@ function App() {
 
             <footer className="shrink-0 border-t border-border bg-background px-4 py-3 sm:px-6">
               <div className="mx-auto w-full max-w-3xl">
+                <TypingIndicator nicknames={typingNicknames} />
                 <MessageInput
+                  key={activeConversationKey}
                   onChange={setComposerText}
                   placeholder={
                     activeRecipient === null
@@ -255,6 +277,7 @@ function App() {
                       : `Message ${activeRecipient}`
                   }
                   onSubmit={handleSendMessage}
+                  onTypingChange={handleTypingChange}
                   value={composerText}
                 />
               </div>
