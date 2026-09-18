@@ -1,11 +1,13 @@
 import { MessageCircle, UserRound } from "lucide-react";
 
+import type { UnreadMessageCounts } from "@/features/chat/useUnreadMessages";
 import type { RoomParticipant } from "@/types/messages";
 
 type ConversationSidebarProps = {
   currentNickname: string;
   onSelect: (nickname: string | null) => void;
   selectedNickname: string | null;
+  unreadCounts: UnreadMessageCounts;
   users: RoomParticipant[];
 };
 
@@ -13,11 +15,16 @@ export function ConversationSidebar({
   currentNickname,
   onSelect,
   selectedNickname,
+  unreadCounts,
   users,
 }: ConversationSidebarProps) {
-  const otherUsers = users.filter(
-    (user) => user.nickname !== currentNickname,
-  );
+  const otherUsers = users.filter((user) => user.nickname !== currentNickname);
+  otherUsers.sort((left, right) => {
+    const unreadDifference =
+      (unreadCounts[right.nickname] ?? 0) - (unreadCounts[left.nickname] ?? 0);
+
+    return unreadDifference || left.nickname.localeCompare(right.nickname);
+  });
 
   return (
     <aside className="shrink-0 border-b border-sidebar-border bg-sidebar px-3 py-3 md:w-60 md:border-r md:border-b-0 md:px-3 md:py-4">
@@ -30,19 +37,30 @@ export function ConversationSidebar({
       >
         <button
           type="button"
+          aria-label={getConversationAriaLabel(
+            "General",
+            unreadCounts.general ?? 0,
+          )}
           aria-current={selectedNickname === null ? "page" : undefined}
-          className="flex min-w-fit items-center gap-3 rounded-md px-3 py-2 text-left text-sm font-medium transition-colors hover:bg-sidebar-accent/60 aria-[current=page]:bg-primary aria-[current=page]:text-primary-foreground md:w-full"
+          className="flex min-w-fit items-center justify-between gap-3 rounded-md px-3 py-2 text-left text-sm font-medium transition-colors hover:bg-sidebar-accent/60 aria-[current=page]:bg-primary aria-[current=page]:text-primary-foreground md:w-full"
           onClick={() => onSelect(null)}
         >
-          <MessageCircle className="size-4" aria-hidden="true" />
-          <span className="min-w-0 truncate">General</span>
+          <span className="flex min-w-0 items-center gap-3">
+            <MessageCircle className="size-4 shrink-0" aria-hidden="true" />
+            <span className="truncate">General</span>
+          </span>
+          <UnreadBadge count={unreadCounts.general ?? 0} />
         </button>
 
         {otherUsers.map((user) => (
           <button
             type="button"
             key={user.nickname}
-            aria-label={`${user.nickname}, ${user.language}`}
+            aria-label={getUserAriaLabel(
+              user.nickname,
+              user.language,
+              unreadCounts[user.nickname] ?? 0,
+            )}
             aria-current={
               selectedNickname === user.nickname ? "page" : undefined
             }
@@ -61,6 +79,9 @@ export function ConversationSidebar({
                 {user.language}
               </span>
             </span>
+            <span className="ml-auto">
+              <UnreadBadge count={unreadCounts[user.nickname] ?? 0} />
+            </span>
           </button>
         ))}
       </nav>
@@ -72,4 +93,37 @@ export function ConversationSidebar({
       ) : null}
     </aside>
   );
+}
+
+function UnreadBadge({ count }: { count: number }) {
+  if (count === 0) {
+    return null;
+  }
+
+  return (
+    <span
+      aria-hidden="true"
+      className="flex min-w-5 shrink-0 items-center justify-center rounded-full bg-[#046ACC] px-1.5 text-[11px] font-semibold leading-5 text-white"
+    >
+      {count > 99 ? "99+" : count}
+    </span>
+  );
+}
+
+function getUserAriaLabel(
+  nickname: string,
+  language: string,
+  unreadCount: number,
+) {
+  return getConversationAriaLabel(`${nickname}, ${language}`, unreadCount);
+}
+
+function getConversationAriaLabel(label: string, unreadCount: number) {
+  if (unreadCount === 0) {
+    return label;
+  }
+
+  return `${label}, ${unreadCount} unread ${
+    unreadCount === 1 ? "message" : "messages"
+  }`;
 }

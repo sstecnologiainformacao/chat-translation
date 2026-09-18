@@ -19,6 +19,7 @@ import { MessageBubble } from "@/features/chat/MessageBubble";
 import { MessageInput } from "@/features/chat/MessageInput";
 import { MessageList } from "@/features/chat/MessageList";
 import { useChat } from "@/features/chat/useChat";
+import { useUnreadMessages } from "@/features/chat/useUnreadMessages";
 import { ApiError, login, register } from "@/lib/api";
 import { clearAuthToken, getAuthSession, saveAuthToken } from "@/lib/auth";
 import { SUPPORTED_LANGUAGES } from "@/lib/languages";
@@ -66,6 +67,13 @@ function App() {
     chat.users.some((user) => user.nickname === selectedRecipient)
       ? selectedRecipient
       : null;
+  const activeConversationKey = activeRecipient ?? "general";
+  const unreadCounts = useUnreadMessages(
+    chat.messages,
+    authSession?.nickname ?? null,
+    activeConversationKey,
+    authToken,
+  );
 
   useEffect(() => {
     applyTheme(theme);
@@ -215,6 +223,7 @@ function App() {
               setComposerText("");
             }}
             selectedNickname={activeRecipient}
+            unreadCounts={unreadCounts}
             users={chat.users}
           />
 
@@ -230,14 +239,11 @@ function App() {
               </p>
             </div>
 
-            <div className="min-h-0 flex-1 overflow-y-auto px-4 sm:px-6">
-              <div className="mx-auto flex w-full max-w-3xl flex-col gap-3 py-5">
-                <MessageList
-                  currentNickname={authSession.nickname}
-                  messages={visibleMessages}
-                />
-              </div>
-            </div>
+            <MessageList
+              conversationKey={activeConversationKey}
+              currentNickname={authSession.nickname}
+              messages={visibleMessages}
+            />
 
             <footer className="shrink-0 border-t border-border bg-background px-4 py-3 sm:px-6">
               <div className="mx-auto w-full max-w-3xl">
